@@ -1,4 +1,9 @@
 (function () {
+  // Replaced with the contents of the VERSION file at Docker image build
+  // time (see Dockerfile); stays as the literal placeholder when running
+  // straight from source (e.g. opened locally without a build step).
+  const APP_VERSION = '__APP_VERSION__';
+
   const STORAGE_KEY = 'wallProjectorState.v1';
   const UI_STORAGE_KEY = 'wallProjectorUI.v1';
 
@@ -49,6 +54,7 @@
     importFileInput: document.getElementById('import-file-input'),
     sidebarCollapseBtn: document.getElementById('sidebar-collapse-btn'),
     layersCompactToggle: document.getElementById('layers-compact-toggle'),
+    appVersion: document.getElementById('app-version'),
     workspaceTabs: document.getElementById('workspace-tabs'),
     workspaceAddBtn: document.getElementById('workspace-add-btn'),
   };
@@ -1482,6 +1488,10 @@
 
   // ---------- init ----------
   function init() {
+    // Placeholder is only substituted by the Docker build (see Dockerfile) —
+    // running straight from source shows "dev" instead of a raw token.
+    els.appVersion.textContent = APP_VERSION === '__APP_VERSION__' ? 'dev' : `v${APP_VERSION}`;
+
     loadUIPrefs();
     setSidebarCollapsed(uiPrefs.sidebarCollapsed);
     setLayersCompact(uiPrefs.layersCompact);

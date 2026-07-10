@@ -57,6 +57,12 @@ html, body {
 
 .spacer { flex: 1; }
 
+.app-version {
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 /* ---------- Workspace tabs ---------- */
 
 .tab-strip {
