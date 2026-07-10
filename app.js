@@ -1,5 +1,6 @@
 (function () {
   const STORAGE_KEY = 'wallProjectorState.v1';
+  const UI_STORAGE_KEY = 'wallProjectorUI.v1';
 
   const els = {
     wallWidth: document.getElementById('wall-width'),
@@ -46,23 +47,36 @@
     exportBtn: document.getElementById('export-btn'),
     importBtn: document.getElementById('import-btn'),
     importFileInput: document.getElementById('import-file-input'),
+    sidebarCollapseBtn: document.getElementById('sidebar-collapse-btn'),
+    layersCompactToggle: document.getElementById('layers-compact-toggle'),
+    workspaceTabs: document.getElementById('workspace-tabs'),
+    workspaceAddBtn: document.getElementById('workspace-add-btn'),
   };
 
   const FRAME_COLORS = ['light-wood', 'dark-wood', 'black', 'white'];
 
-  let state = {
-    wall: { width: 300, height: 200, unit: 'cm' },
-    images: [], // {id, src, name, xPct, yPct, wPct, hPct, rotation, naturalW, naturalH, frame, nails: [{xCm, yCm}]}
-    ruler: { length: 100, visible: true },
-    background: { enabled: false, color: '#2a2a2a', projectToo: false },
-    defaults: { imageWidth: 30, frameEnabled: false, frameColor: 'black', frameWidth: 3 },
-    grid: { enabled: false, size: 20, projectToo: false },
-    nail: { enabled: false, color: '#ff3b3b', size: 10 },
-  };
+  function makeDefaultState() {
+    return {
+      wall: { width: 300, height: 200, unit: 'cm' },
+      images: [], // {id, src, name, xPct, yPct, wPct, hPct, rotation, naturalW, naturalH, frame, nails: [{xCm, yCm}]}
+      ruler: { length: 100, visible: true },
+      background: { enabled: false, color: '#2a2a2a', projectToo: false },
+      defaults: { imageWidth: 30, frameEnabled: false, frameColor: 'black', frameWidth: 3 },
+      grid: { enabled: false, size: 20, projectToo: false },
+      nail: { enabled: false, color: '#ff3b3b', size: 10 },
+    };
+  }
+
+  let state = makeDefaultState();
 
   let nextId = 1;
   let selectedId = null;
   const elMap = new Map(); // id -> { root, imgEl }
+
+  // ---------- workspaces ----------
+  const WORKSPACES_KEY = 'wallProjectorWorkspaces.v1';
+  let workspaces = []; // [{id, name}]
+  let activeWorkspaceId = null;
 
   // ---------- persistence ----------
   let saveTimer = null;
@@ -72,14 +86,14 @@
   }
   function saveState() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(workspaceStateKey(activeWorkspaceId), JSON.stringify(state));
     } catch (e) {
       console.warn('Could not save state', e);
     }
   }
   // Fills in defaults for any fields missing from an older save (or a file
   // from an older version of the app) and migrates deprecated formats.
-  // Shared by loadState() (from localStorage) and file import, so both
+  // Shared by activateWorkspaceState() (from localStorage) and file import, so both
   // apply the exact same rules. Mutates and returns the given object; throws
   // if it doesn't look like a wall-projector state at all.
   function normalizeState(parsed) {
@@ -109,19 +123,222 @@
       }
       delete im.nailXPct;
       delete im.nailYPct;
+      if (im.aspectLocked === undefined) im.aspectLocked = true;
+      if (im.crop === undefined) im.crop = false;
     });
     return parsed;
   }
 
-  function loadState() {
+  function workspaceStateKey(id) {
+    return `${STORAGE_KEY}.${id}`;
+  }
+
+  function saveWorkspaceIndex() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      state = normalizeState(JSON.parse(raw));
-      nextId = state.images.reduce((m, im) => Math.max(m, im.id + 1), 1);
+      localStorage.setItem(WORKSPACES_KEY, JSON.stringify({ workspaces, activeId: activeWorkspaceId }));
     } catch (e) {
-      console.warn('Could not load saved state', e);
+      console.warn('Could not save workspace index', e);
     }
+  }
+
+  function readWorkspaceState(id) {
+    try {
+      const raw = localStorage.getItem(workspaceStateKey(id));
+      if (!raw) return null;
+      return normalizeState(JSON.parse(raw));
+    } catch (e) {
+      console.warn('Could not load workspace state', e);
+      return null;
+    }
+  }
+
+  // Populates `workspaces`/`activeWorkspaceId` from the index key. On first
+  // ever run (no index yet), migrates a pre-workspaces single-project save
+  // (the old bare STORAGE_KEY) into one "Wall" workspace, or seeds a fresh
+  // default workspace if there was nothing saved at all.
+  function loadWorkspaces() {
+    try {
+      const raw = localStorage.getItem(WORKSPACES_KEY);
+      if (raw) {
+        const idx = JSON.parse(raw);
+        if (idx && Array.isArray(idx.workspaces) && idx.workspaces.length) {
+          workspaces = idx.workspaces;
+          activeWorkspaceId = workspaces.some((w) => w.id === idx.activeId) ? idx.activeId : workspaces[0].id;
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load workspace index', e);
+    }
+
+    const id = 'default';
+    workspaces = [{ id, name: 'Wall' }];
+    activeWorkspaceId = id;
+    const legacyRaw = localStorage.getItem(STORAGE_KEY);
+    if (legacyRaw) {
+      try {
+        localStorage.setItem(workspaceStateKey(id), legacyRaw);
+      } catch (e) {
+        console.warn('Could not migrate legacy save', e);
+      }
+    }
+    saveWorkspaceIndex();
+  }
+
+  // Loads the given workspace's project data into `state`/`nextId` (falling
+  // back to a fresh default project if nothing is saved for it yet).
+  function activateWorkspaceState(id) {
+    state = readWorkspaceState(id) || makeDefaultState();
+    nextId = state.images.reduce((m, im) => Math.max(m, im.id + 1), 1);
+  }
+
+  function switchWorkspace(id) {
+    if (id === activeWorkspaceId) return;
+    // Flush any pending debounced save for the OLD workspace before
+    // reassigning activeWorkspaceId, so it doesn't get written under the
+    // new workspace's key.
+    clearTimeout(saveTimer);
+    saveState();
+    activeWorkspaceId = id;
+    teardownDOM();
+    activateWorkspaceState(id);
+    hydrateFromState();
+    renderWorkspaceTabs();
+    saveWorkspaceIndex();
+  }
+
+  function createWorkspace() {
+    clearTimeout(saveTimer);
+    saveState();
+    const id = 'ws-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    workspaces.push({ id, name: `Workspace ${workspaces.length + 1}` });
+    try {
+      localStorage.setItem(workspaceStateKey(id), JSON.stringify(makeDefaultState()));
+    } catch (e) {
+      console.warn('Could not create workspace', e);
+    }
+    activeWorkspaceId = id;
+    teardownDOM();
+    activateWorkspaceState(id);
+    hydrateFromState();
+    renderWorkspaceTabs();
+    saveWorkspaceIndex();
+  }
+
+  function deleteWorkspace(id) {
+    if (workspaces.length <= 1) return;
+    if (!confirm('Delete this workspace? This cannot be undone.')) return;
+    const idx = workspaces.findIndex((w) => w.id === id);
+    if (idx === -1) return;
+    workspaces.splice(idx, 1);
+    try {
+      localStorage.removeItem(workspaceStateKey(id));
+    } catch (e) {
+      console.warn('Could not remove workspace storage', e);
+    }
+    if (activeWorkspaceId === id) {
+      const nextActive = workspaces[Math.max(0, idx - 1)].id;
+      activeWorkspaceId = nextActive;
+      teardownDOM();
+      activateWorkspaceState(nextActive);
+      hydrateFromState();
+    }
+    renderWorkspaceTabs();
+    saveWorkspaceIndex();
+  }
+
+  function renderWorkspaceTabs() {
+    els.workspaceTabs.querySelectorAll('.tab').forEach((el) => el.remove());
+    workspaces.forEach((ws) => {
+      const tab = document.createElement('div');
+      tab.className = 'tab' + (ws.id === activeWorkspaceId ? ' active' : '');
+      tab.dataset.id = ws.id;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'tab-name';
+      nameSpan.textContent = ws.name;
+      tab.appendChild(nameSpan);
+
+      tab.addEventListener('click', () => {
+        if (ws.id !== activeWorkspaceId) switchWorkspace(ws.id);
+      });
+      nameSpan.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        startRenameTab(tab, ws, nameSpan);
+      });
+
+      if (workspaces.length > 1) {
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'tab-close';
+        closeBtn.textContent = '✕';
+        closeBtn.title = 'Delete workspace';
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteWorkspace(ws.id);
+        });
+        tab.appendChild(closeBtn);
+      }
+
+      els.workspaceTabs.insertBefore(tab, els.workspaceAddBtn);
+    });
+  }
+
+  function startRenameTab(tab, ws, nameSpan) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'tab-name-edit';
+    input.value = ws.name;
+    tab.replaceChild(input, nameSpan);
+    input.focus();
+    input.select();
+    input.addEventListener('click', (e) => e.stopPropagation());
+    function commit() {
+      const v = input.value.trim();
+      if (v) ws.name = v;
+      saveWorkspaceIndex();
+      renderWorkspaceTabs();
+    }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') {
+        input.value = ws.name;
+        input.blur();
+      }
+    });
+  }
+
+  // ---------- UI prefs (sidebar collapse / layers density) ----------
+  // Kept in their own localStorage key, separate from the project state,
+  // since these are per-browser display preferences rather than project data.
+  let uiPrefs = { sidebarCollapsed: false, layersCompact: false };
+
+  function loadUIPrefs() {
+    try {
+      const raw = localStorage.getItem(UI_STORAGE_KEY);
+      if (raw) uiPrefs = Object.assign(uiPrefs, JSON.parse(raw));
+    } catch (e) {
+      console.warn('Could not load UI prefs', e);
+    }
+  }
+  function saveUIPrefs() {
+    try {
+      localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(uiPrefs));
+    } catch (e) {
+      console.warn('Could not save UI prefs', e);
+    }
+  }
+  function setSidebarCollapsed(collapsed) {
+    uiPrefs.sidebarCollapsed = collapsed;
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    els.sidebarCollapseBtn.textContent = collapsed ? '▶' : '◀';
+    els.sidebarCollapseBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    saveUIPrefs();
+  }
+  function setLayersCompact(compact) {
+    uiPrefs.layersCompact = compact;
+    document.body.classList.toggle('layers-compact', compact);
+    saveUIPrefs();
   }
 
   // ---------- wall ----------
@@ -226,6 +443,8 @@
       rotation: 0,
       naturalW: naturalW || 0,
       naturalH: naturalH || 0,
+      aspectLocked: true,
+      crop: false,
       frame: {
         enabled: state.defaults.frameEnabled,
         color: state.defaults.frameColor,
@@ -393,7 +612,8 @@
   function applyTransform(imgState) {
     const rec = elMap.get(imgState.id);
     if (!rec) return;
-    const { root, frameEl, nailEls } = rec;
+    const { root, imgEl, frameEl, nailEls } = rec;
+    imgEl.style.objectFit = imgState.crop ? 'cover' : 'fill';
 
     // Nail positions are stored as cm offsets from the photo's own top-left
     // corner (so they stay physically meaningful regardless of image size),
@@ -494,7 +714,9 @@
       const dx = ev.clientX - startX;
       const newWPct = Math.max(2, startWPct + (dx / rect.width) * 100);
       let newHPct;
-      if (ev.shiftKey) {
+      // Shift key temporarily flips whichever mode the image is normally in.
+      const freeform = imgState.aspectLocked ? ev.shiftKey : !ev.shiftKey;
+      if (freeform) {
         // free-form stretch, ignoring the image's aspect ratio
         const dy = ev.clientY - startY;
         newHPct = Math.max(2, startHPct + (dy / rect.height) * 100);
@@ -645,7 +867,13 @@
       <div class="prop-row"><label>Width (${unit})</label><input type="number" step="0.5" min="0.1" id="prop-w" value="${wVal.toFixed(1)}"></div>
       <div class="prop-row"><label>Height (${unit})</label><input type="number" step="0.5" min="0.1" id="prop-h" value="${hVal.toFixed(1)}"></div>
       <div class="prop-row"><label>Rotation °</label><input type="number" step="1" id="prop-r" value="${Math.round(im.rotation)}"></div>
-      <p class="hint">Width/height stay proportional to keep the image's aspect ratio.</p>
+      <div class="prop-row"><label>Lock aspect ratio</label><input type="checkbox" id="prop-aspect-locked" ${im.aspectLocked ? 'checked' : ''}></div>
+      <div class="prop-row"><label>Crop to fit</label><input type="checkbox" id="prop-crop" ${im.crop ? 'checked' : ''}></div>
+      <p class="hint">${
+        im.aspectLocked
+          ? "Width/height stay proportional to keep the image's aspect ratio (drag handle: hold Shift to stretch freely)."
+          : "Width/height can be changed independently (drag handle: hold Shift to keep the aspect ratio)."
+      }</p>
       <div class="prop-row"><label>Frame</label><input type="checkbox" id="prop-frame-enabled" ${frame.enabled ? 'checked' : ''}></div>
       ${
         frame.enabled
@@ -686,8 +914,10 @@
       const v = parseFloat(e.target.value);
       if (Number.isNaN(v) || v <= 0) return;
       im.wPct = cmToPctX(v);
-      im.hPct = cmToPctY(v * aspect);
-      document.getElementById('prop-h').value = (v * aspect).toFixed(1);
+      if (im.aspectLocked) {
+        im.hPct = cmToPctY(v * aspect);
+        document.getElementById('prop-h').value = (v * aspect).toFixed(1);
+      }
       applyTransform(im);
       scheduleSave();
     });
@@ -695,8 +925,20 @@
       const v = parseFloat(e.target.value);
       if (Number.isNaN(v) || v <= 0) return;
       im.hPct = cmToPctY(v);
-      im.wPct = cmToPctX(v / aspect);
-      document.getElementById('prop-w').value = (v / aspect).toFixed(1);
+      if (im.aspectLocked) {
+        im.wPct = cmToPctX(v / aspect);
+        document.getElementById('prop-w').value = (v / aspect).toFixed(1);
+      }
+      applyTransform(im);
+      scheduleSave();
+    });
+    document.getElementById('prop-aspect-locked').addEventListener('change', (e) => {
+      im.aspectLocked = e.target.checked;
+      renderProps();
+      scheduleSave();
+    });
+    document.getElementById('prop-crop').addEventListener('change', (e) => {
+      im.crop = e.target.checked;
       applyTransform(im);
       scheduleSave();
     });
@@ -967,6 +1209,14 @@
   new ResizeObserver(positionSidebar).observe(els.topbar);
   positionSidebar();
 
+  els.sidebarCollapseBtn.addEventListener('click', () => {
+    setSidebarCollapsed(!uiPrefs.sidebarCollapsed);
+  });
+  els.layersCompactToggle.addEventListener('click', () => {
+    setLayersCompact(!uiPrefs.layersCompact);
+  });
+  els.workspaceAddBtn.addEventListener('click', createWorkspace);
+
   // ---------- events ----------
   els.applySize.addEventListener('click', applyWallSize);
   els.presentBtn.addEventListener('click', togglePresent);
@@ -1175,8 +1425,10 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const stamp = new Date().toISOString().slice(0, 10);
+    const ws = workspaces.find((w) => w.id === activeWorkspaceId);
+    const safeName = ((ws && ws.name) || 'wall').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'wall';
     a.href = url;
-    a.download = `wall-projector-${stamp}.json`;
+    a.download = `wall-projector-${safeName}-${stamp}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1193,12 +1445,27 @@
         alert("That doesn't look like a Wall Projector project file.");
         return;
       }
-      if (!confirm('Import this file? It will replace everything currently on the wall.')) return;
+      const baseName = file.name.replace(/\.json$/i, '') || 'Imported';
+      let name = baseName;
+      let n = 2;
+      while (workspaces.some((w) => w.name === name)) {
+        name = `${baseName} (${n++})`;
+      }
+      const id = 'ws-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      try {
+        localStorage.setItem(workspaceStateKey(id), JSON.stringify(next));
+      } catch (err) {
+        console.warn('Could not save imported workspace', err);
+      }
+      workspaces.push({ id, name });
+      clearTimeout(saveTimer);
+      saveState();
+      activeWorkspaceId = id;
       teardownDOM();
-      state = next;
-      nextId = state.images.reduce((m, im) => Math.max(m, im.id + 1), 1);
+      activateWorkspaceState(id);
       hydrateFromState();
-      scheduleSave();
+      renderWorkspaceTabs();
+      saveWorkspaceIndex();
       closeSettings();
     };
     reader.onerror = () => alert('Could not read that file.');
@@ -1215,7 +1482,12 @@
 
   // ---------- init ----------
   function init() {
-    loadState();
+    loadUIPrefs();
+    setSidebarCollapsed(uiPrefs.sidebarCollapsed);
+    setLayersCompact(uiPrefs.layersCompact);
+    loadWorkspaces();
+    activateWorkspaceState(activeWorkspaceId);
+    renderWorkspaceTabs();
     hydrateFromState();
   }
 
