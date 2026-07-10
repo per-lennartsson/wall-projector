@@ -27,6 +27,7 @@
     rulerLength: document.getElementById('ruler-length'),
     rulerVisible: document.getElementById('ruler-visible'),
     rulerUnitLabel: document.getElementById('ruler-unit-label'),
+    rulerColor: document.getElementById('ruler-color'),
     bgEnabled: document.getElementById('bg-enabled'),
     bgColor: document.getElementById('bg-color'),
     bgProject: document.getElementById('bg-project'),
@@ -67,7 +68,7 @@
     return {
       wall: { width: 300, height: 200, unit: 'cm' },
       images: [], // {id, src, name, xPct, yPct, wPct, hPct, rotation, naturalW, naturalH, frame, nails: [{xCm, yCm}]}
-      ruler: { length: 100, visible: true },
+      ruler: { length: 100, visible: true, color: '#ffcc00' },
       background: { enabled: false, color: '#2a2a2a', projectToo: false },
       defaults: { imageWidth: 30, frameEnabled: false, frameColor: 'black', frameWidth: 3 },
       grid: { enabled: false, size: 20, projectToo: false },
@@ -108,7 +109,8 @@
     if (!parsed || !parsed.wall || !Array.isArray(parsed.images)) {
       throw new Error('Not a wall-projector project file');
     }
-    if (!parsed.ruler) parsed.ruler = { length: 100, visible: true };
+    if (!parsed.ruler) parsed.ruler = { length: 100, visible: true, color: '#ffcc00' };
+    if (!parsed.ruler.color) parsed.ruler.color = '#ffcc00';
     if (!parsed.background) parsed.background = { enabled: false, color: '#2a2a2a', projectToo: false };
     if (parsed.background.projectToo === undefined) parsed.background.projectToo = false;
     if (!parsed.defaults) {
@@ -1095,6 +1097,7 @@
       rulerLabelEl.textContent = label;
     });
     els.rulerUnitLabel.textContent = state.wall.unit;
+    els.wallCanvas.style.setProperty('--ruler-color', state.ruler.color);
   }
 
   // ---------- reference grid (editor only) ----------
@@ -1279,6 +1282,12 @@
     renderRuler();
     scheduleSave();
   });
+  els.rulerColor.addEventListener('input', (e) => {
+    state.ruler.color = e.target.value;
+    renderRuler();
+    scheduleSave();
+  });
+
   els.rulerVisible.addEventListener('change', (e) => {
     state.ruler.visible = e.target.checked;
     renderRuler();
@@ -1414,6 +1423,7 @@
     createRulerElement('bottom');
     els.rulerLength.value = state.ruler.length;
     els.rulerVisible.checked = state.ruler.visible;
+    els.rulerColor.value = state.ruler.color;
     renderRuler();
 
     els.bgEnabled.checked = state.background.enabled;
