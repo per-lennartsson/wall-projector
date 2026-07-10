@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wall Projector</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <header id="topbar">
+      <h1>Wall Projector</h1>
+
+      <div class="field-group">
+        <label>Wall size</label>
+        <input id="wall-width" type="number" min="1" step="0.1" value="300" />
+        <span class="x">×</span>
+        <input id="wall-height" type="number" min="1" step="0.1" value="200" />
+        <select id="wall-unit">
+          <option value="cm" selected>cm</option>
+          <option value="m">m</option>
+          <option value="in">in</option>
+          <option value="px">px</option>
+        </select>
+        <button id="apply-size">Apply</button>
+      </div>
+
+      <div class="spacer"></div>
+
+      <button id="help-btn" class="icon-btn" title="How to use" aria-label="How to use">?</button>
+      <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+      <button id="present-btn" class="primary">Project ▶</button>
+    </header>
+
+    <div id="body-layout">
+
+      <aside id="sidebar">
+        <section>
+          <h2>Add image</h2>
+          <label class="file-btn">
+            Upload image(s)
+            <input id="file-input" type="file" accept="image/*" multiple hidden />
+          </label>
+
+          <div class="url-row">
+            <input id="url-input" type="text" placeholder="Paste image URL…" />
+            <button id="url-add">Add</button>
+          </div>
+        </section>
+
+        <section id="layers-section">
+          <h2>Layers</h2>
+          <ul id="layers-list"></ul>
+          <p id="layers-empty" class="hint">No images yet — upload or paste a link.</p>
+        </section>
+
+        <section>
+          <h2>Selected image</h2>
+          <div id="props-panel" class="hint">Nothing selected.</div>
+        </section>
+
+        <section>
+          <button id="clear-all" class="danger-outline">Clear all</button>
+        </section>
+      </aside>
+
+      <main id="stage">
+        <div id="wall-frame">
+          <div id="wall-canvas"></div>
+        </div>
+        <p class="hint" id="stage-hint">Drag to move · corner handle to resize (aspect locked, hold Shift to stretch) · top handle to rotate · Delete key to remove</p>
+      </main>
+
+    </div>
+
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Settings</h2>
+          <button id="settings-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+        </div>
+        <div class="modal-body">
+
+          <section id="project-file-section">
+            <h2>Project file</h2>
+            <div class="button-row">
+              <button id="export-btn" type="button">Export…</button>
+              <button id="import-btn" type="button">Import…</button>
+              <input id="import-file-input" type="file" accept="application/json,.json" hidden />
+            </div>
+            <p class="hint">Export saves everything on this wall (images, sizes, frames, nails, and all settings) as a file you can send to someone else or keep as a backup. Import loads one back — it replaces everything currently on the wall.</p>
+          </section>
+
+          <section id="defaults-section">
+            <h2>New image defaults</h2>
+            <div class="prop-row">
+              <label>Width (<span id="default-width-unit">cm</span>)</label>
+              <input id="default-width" type="number" min="1" step="1" value="30" />
+            </div>
+            <div class="prop-row">
+              <label>Add frame</label>
+              <input id="default-frame-enabled" type="checkbox" />
+            </div>
+            <div class="prop-row">
+              <label>Frame color</label>
+              <select id="default-frame-color">
+                <option value="light-wood">Light wood</option>
+                <option value="dark-wood">Dark wood</option>
+                <option value="black" selected>Black</option>
+                <option value="white">White</option>
+              </select>
+            </div>
+            <div class="prop-row">
+              <label>Frame width (<span id="default-frame-width-unit">cm</span>)</label>
+              <input id="default-frame-width" type="number" min="0.5" step="0.5" value="3" />
+            </div>
+            <p class="hint">Applies to images you add from now on — existing images are unaffected.</p>
+          </section>
+
+          <section id="calibration-section">
+            <h2>Calibration ruler</h2>
+            <div class="prop-row">
+              <label>Length (<span id="ruler-unit-label">cm</span>)</label>
+              <input id="ruler-length" type="number" min="1" step="1" value="100" />
+            </div>
+            <div class="prop-row">
+              <label>Show on wall</label>
+              <input id="ruler-visible" type="checkbox" checked />
+            </div>
+            <p class="hint">Shown at both the top and bottom of the wall. Project, then hold a tape measure to each line. If they don't measure the same, the projector has keystone distortion — adjust its position/lens-shift/keystone correction until both match.</p>
+          </section>
+
+          <section id="background-section">
+            <h2>Wall background</h2>
+            <div class="prop-row">
+              <label>Show color</label>
+              <input id="bg-enabled" type="checkbox" />
+            </div>
+            <div class="prop-row">
+              <label>Color</label>
+              <input id="bg-color" type="color" value="#2a2a2a" />
+            </div>
+            <div class="prop-row">
+              <label>Also show when projecting</label>
+              <input id="bg-project" type="checkbox" />
+            </div>
+            <p class="hint">Off by default: projected/fullscreen output stays black outside your images. Turn this on to project the color too (e.g. to tint the wall).</p>
+          </section>
+
+          <section id="grid-section">
+            <h2>Reference grid</h2>
+            <div class="prop-row">
+              <label>Show grid</label>
+              <input id="grid-enabled" type="checkbox" />
+            </div>
+            <div class="prop-row">
+              <label>Size (<span id="grid-size-unit">cm</span>)</label>
+              <input id="grid-size" type="number" min="1" step="1" value="20" />
+            </div>
+            <div class="prop-row">
+              <label>Also show when projecting</label>
+              <input id="grid-project" type="checkbox" />
+            </div>
+            <p class="hint">Dotted reference grid to help line up images. Off by default when projecting, since it's normally just an editing aid — turn this on if you actually want it visible on the wall too.</p>
+          </section>
+
+          <section id="nail-section">
+            <h2>Hanging point</h2>
+            <div class="prop-row">
+              <label>Show dots</label>
+              <input id="nail-enabled" type="checkbox" />
+            </div>
+            <div class="prop-row">
+              <label>Color</label>
+              <input id="nail-color" type="color" value="#ff3b3b" />
+            </div>
+            <div class="prop-row">
+              <label>Size (px)</label>
+              <input id="nail-size" type="number" min="2" step="1" value="10" />
+            </div>
+            <p class="hint">Marks where to put the nail(s) on the wall for each image — visible while editing and while projecting. Color/size apply everywhere; each image can have multiple nails, positioned in cm from its top-left corner (drag the dot, or use Selected Image below). New images start with one nail centered.</p>
+          </section>
+
+        </div>
+      </div>
+    </div>
+
+    <div id="help-modal" class="modal-overlay hidden">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>How to use</h2>
+          <button id="help-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+        </div>
+        <div class="modal-body">
+
+          <section>
+            <h2>1. Set the wall size</h2>
+            <p class="hint">Enter the real width and height of the wall (or screen) at the top, in whatever unit you like, then hit Apply. Everything else on this page — image sizes, frame widths, the calibration ruler, the grid — is measured in that same real-world unit from then on.</p>
+          </section>
+
+          <section>
+            <h2>2. Add images</h2>
+            <p class="hint">Upload file(s) or paste an image URL in the sidebar. New images default to the width set in Settings → New image defaults (30cm out of the box).</p>
+          </section>
+
+          <section>
+            <h2>3. Position them</h2>
+            <p class="hint">Drag an image to move it. Drag its corner handle to resize (aspect ratio stays locked — hold Shift to stretch freely). Drag the top handle to rotate. For exact placement, select an image and type X/Y/Width/Height directly in the sidebar. Delete key removes the selected image.</p>
+          </section>
+
+          <section>
+            <h2>4. Optional: add a frame</h2>
+            <p class="hint">Turn on Frame for the selected image and pick a color (light/dark wood, black, white) and width. The frame adds onto the photo's size rather than shrinking it — Width/Height in the sidebar always describe the photo itself.</p>
+          </section>
+
+          <section>
+            <h2>5. Calibrate the projector</h2>
+            <p class="hint">Turn on the Calibration ruler (Settings → gear icon) and project. Hold a tape measure to the lines at the top and bottom of the wall — if they don't measure the same real length, the projector has keystone distortion; adjust its position or keystone correction until both match.</p>
+          </section>
+
+          <section>
+            <h2>6. Optional: mark nail positions</h2>
+            <p class="hint">Turn on hanging-point dots (Settings) to mark where each nail should go. Drag a dot to position it, or use "+ Add nail" for images that need more than one. Positions are in cm from the photo's own top-left corner, so they stay accurate if you resize the wall.</p>
+          </section>
+
+          <section>
+            <h2>7. Project</h2>
+            <p class="hint">Click Project (top right) to go fullscreen on your projector/second display — the sidebar and toolbar hide, and the wall fills the whole screen at the same position it was in the editor, so nothing jumps. Press Escape or click Exit to come back.</p>
+          </section>
+
+          <section>
+            <h2>8. Save your work</h2>
+            <p class="hint">Everything auto-saves to this browser. To back it up or move it to another computer, use Settings → Project file → Export (downloads a .json file) and Import (loads one back, replacing the current wall).</p>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
