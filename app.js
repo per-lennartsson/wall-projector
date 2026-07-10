@@ -1594,8 +1594,13 @@
   // ---------- init ----------
   function init() {
     // Placeholder is only substituted by the Docker build (see Dockerfile) —
-    // running straight from source shows "dev" instead of a raw token.
-    els.appVersion.textContent = APP_VERSION === '__APP_VERSION__' ? 'dev' : `v${APP_VERSION}`;
+    // running straight from source shows "dev" instead of a raw token. This
+    // checks the generic __xxx__ shape rather than comparing against the
+    // literal placeholder text, since the Dockerfile's sed replaces the
+    // first match on every line — a literal comparison here would itself
+    // get substituted and always be true, permanently showing "dev".
+    const isUnbaked = /^__.+__$/.test(APP_VERSION);
+    els.appVersion.textContent = isUnbaked ? 'dev' : `v${APP_VERSION}`;
 
     loadUIPrefs();
     setSidebarCollapsed(uiPrefs.sidebarCollapsed);
