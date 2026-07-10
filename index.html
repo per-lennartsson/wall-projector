@@ -92,14 +92,30 @@
         </div>
         <div class="modal-body">
 
+          <section id="appearance-section">
+            <h2>Appearance</h2>
+            <div class="prop-row">
+              <label>Theme</label>
+              <select id="theme-select">
+                <option value="system">System default</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
+            <p class="hint">"System default" follows your OS/browser's light or dark setting automatically.</p>
+          </section>
+
           <section id="project-file-section">
             <h2>Project file</h2>
             <div class="button-row">
-              <button id="export-btn" type="button">Export…</button>
+              <button id="export-btn" type="button">Export this workspace…</button>
+              <button id="export-all-btn" type="button">Export all workspaces…</button>
+            </div>
+            <div class="button-row">
               <button id="import-btn" type="button">Import…</button>
               <input id="import-file-input" type="file" accept="application/json,.json" hidden />
             </div>
-            <p class="hint">Export saves the current workspace (images, sizes, frames, nails, and all settings) as a file you can send to someone else or keep as a backup, named after the workspace. Import loads one back into a new workspace tab — it never overwrites the one you're currently on.</p>
+            <p class="hint">Export this workspace saves just the current tab; export all workspaces bundles every tab into one file. Either way it's a backup/share file, named after the workspace(s). Import loads a file back in as new workspace tab(s) — a single-workspace file adds one tab, a bundle adds one per workspace inside it — it never overwrites the tab you're currently on.</p>
           </section>
 
           <section id="defaults-section">
@@ -241,7 +257,7 @@
 
           <section>
             <h2>8. Save your work</h2>
-            <p class="hint">Everything auto-saves to this browser. Use the tabs at the top to keep multiple walls/workspaces side by side — click + for a new one, click a tab's name to rename it. To back up or move a workspace to another computer, use Settings → Project file → Export (downloads a .json file named after the workspace) and Import (loads a file into a new tab).</p>
+            <p class="hint">Everything auto-saves to this browser. Use the tabs at the top to keep multiple walls/workspaces side by side — click + for a new one, click a tab's name to rename it. To back up or move workspaces to another computer, use Settings → Project file → Export this workspace (just the current tab) or Export all workspaces (every tab, one file) — Import loads either kind of file back in as new tab(s).</p>
           </section>
 
         </div>
