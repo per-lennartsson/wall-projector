@@ -586,7 +586,7 @@ body.layers-compact .layer-name {
   left: 50%;
   transform: translateX(-50%);
   height: 0;
-  border-top: 3px solid #ffcc00;
+  border-top: 3px solid var(--ruler-color, #ffcc00);
   pointer-events: none;
   z-index: 9999;
 }
@@ -601,7 +601,7 @@ body.layers-compact .layer-name {
   top: -8px;
   width: 3px;
   height: 16px;
-  background: #ffcc00;
+  background: var(--ruler-color, #ffcc00);
 }
 
 .calibration-ruler::before { left: 0; }
@@ -612,7 +612,7 @@ body.layers-compact .layer-name {
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
-  color: #ffcc00;
+  color: var(--ruler-color, #ffcc00);
   font-size: 12px;
   font-weight: 600;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
