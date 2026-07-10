@@ -12,6 +12,10 @@
     <header id="topbar">
       <h1>Wall Projector</h1>
 
+      <div id="workspace-tabs" class="tab-strip">
+        <button id="workspace-add-btn" class="icon-btn" title="New workspace" aria-label="New workspace">+</button>
+      </div>
+
       <div class="field-group">
         <label>Wall size</label>
         <input id="wall-width" type="number" min="1" step="0.1" value="300" />
@@ -36,6 +40,8 @@
     <div id="body-layout">
 
       <aside id="sidebar">
+        <button id="sidebar-collapse-btn" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
+
         <section>
           <h2>Add image</h2>
           <label class="file-btn">
@@ -50,7 +56,10 @@
         </section>
 
         <section id="layers-section">
-          <h2>Layers</h2>
+          <div class="section-header">
+            <h2>Layers</h2>
+            <button id="layers-compact-toggle" class="icon-btn" title="Toggle compact rows" aria-label="Toggle compact rows">☰</button>
+          </div>
           <ul id="layers-list"></ul>
           <p id="layers-empty" class="hint">No images yet — upload or paste a link.</p>
         </section>
@@ -89,7 +98,7 @@
               <button id="import-btn" type="button">Import…</button>
               <input id="import-file-input" type="file" accept="application/json,.json" hidden />
             </div>
-            <p class="hint">Export saves everything on this wall (images, sizes, frames, nails, and all settings) as a file you can send to someone else or keep as a backup. Import loads one back — it replaces everything currently on the wall.</p>
+            <p class="hint">Export saves the current workspace (images, sizes, frames, nails, and all settings) as a file you can send to someone else or keep as a backup, named after the workspace. Import loads one back into a new workspace tab — it never overwrites the one you're currently on.</p>
           </section>
 
           <section id="defaults-section">
@@ -231,7 +240,7 @@
 
           <section>
             <h2>8. Save your work</h2>
-            <p class="hint">Everything auto-saves to this browser. To back it up or move it to another computer, use Settings → Project file → Export (downloads a .json file) and Import (loads one back, replacing the current wall).</p>
+            <p class="hint">Everything auto-saves to this browser. Use the tabs at the top to keep multiple walls/workspaces side by side — click + for a new one, click a tab's name to rename it. To back up or move a workspace to another computer, use Settings → Project file → Export (downloads a .json file named after the workspace) and Import (loads a file into a new tab).</p>
           </section>
 
         </div>
