@@ -1,4 +1,5 @@
-:root {
+:root,
+:root[data-theme="dark"] {
   --bg: #1b1d22;
   --panel: #24262d;
   --panel-2: #2c2f38;
@@ -8,6 +9,22 @@
   --accent: #5b8cff;
   --accent-hover: #4577f5;
   --danger: #e05a5a;
+}
+
+/* Applied via a data-theme attribute set from JS (see applyTheme() in
+   app.js), which also resolves "system default" against the OS/browser's
+   prefers-color-scheme — so this attribute is always either "light" or
+   "dark" by the time the page settles, never left unset. */
+:root[data-theme="light"] {
+  --bg: #f0f1f4;
+  --panel: #ffffff;
+  --panel-2: #f2f3f6;
+  --border: #d7dae0;
+  --text: #1b1d22;
+  --text-dim: #6b7280;
+  --accent: #3b6fe0;
+  --accent-hover: #2f5bc4;
+  --danger: #d1453b;
 }
 
 * { box-sizing: border-box; }

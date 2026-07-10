@@ -50,10 +50,12 @@
     nailColor: document.getElementById('nail-color'),
     nailSize: document.getElementById('nail-size'),
     exportBtn: document.getElementById('export-btn'),
+    exportAllBtn: document.getElementById('export-all-btn'),
     importBtn: document.getElementById('import-btn'),
     importFileInput: document.getElementById('import-file-input'),
     sidebarCollapseBtn: document.getElementById('sidebar-collapse-btn'),
     layersCompactToggle: document.getElementById('layers-compact-toggle'),
+    themeSelect: document.getElementById('theme-select'),
     appVersion: document.getElementById('app-version'),
     workspaceTabs: document.getElementById('workspace-tabs'),
     workspaceAddBtn: document.getElementById('workspace-add-btn'),
@@ -314,10 +316,10 @@
     });
   }
 
-  // ---------- UI prefs (sidebar collapse / layers density) ----------
+  // ---------- UI prefs (sidebar collapse / layers density / theme) ----------
   // Kept in their own localStorage key, separate from the project state,
   // since these are per-browser display preferences rather than project data.
-  let uiPrefs = { sidebarCollapsed: false, layersCompact: false };
+  let uiPrefs = { sidebarCollapsed: false, layersCompact: false, theme: 'dark' };
 
   function loadUIPrefs() {
     try {
@@ -344,6 +346,23 @@
   function setLayersCompact(compact) {
     uiPrefs.layersCompact = compact;
     document.body.classList.toggle('layers-compact', compact);
+    saveUIPrefs();
+  }
+
+  // 'system' resolves live via the OS/browser's prefers-color-scheme, so the
+  // app can follow it without a page reload (see the matchMedia listener
+  // wired up below, near the rest of init).
+  const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+  function resolveEffectiveTheme() {
+    if (uiPrefs.theme === 'light' || uiPrefs.theme === 'dark') return uiPrefs.theme;
+    return systemThemeQuery && systemThemeQuery.matches ? 'light' : 'dark';
+  }
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', resolveEffectiveTheme());
+  }
+  function setTheme(theme) {
+    uiPrefs.theme = theme;
+    applyTheme();
     saveUIPrefs();
   }
 
@@ -1223,6 +1242,15 @@
   });
   els.workspaceAddBtn.addEventListener('click', createWorkspace);
 
+  els.themeSelect.addEventListener('change', (e) => {
+    setTheme(e.target.value);
+  });
+  if (systemThemeQuery) {
+    systemThemeQuery.addEventListener('change', () => {
+      if (uiPrefs.theme === 'system') applyTheme();
+    });
+  }
+
   // ---------- events ----------
   els.applySize.addEventListener('click', applyWallSize);
   els.presentBtn.addEventListener('click', togglePresent);
@@ -1425,60 +1453,137 @@
   }
 
   // ---------- export / import ----------
-  function exportProject() {
-    const json = JSON.stringify(state, null, 2);
+  function downloadJSON(obj, filename) {
+    const json = JSON.stringify(obj, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const stamp = new Date().toISOString().slice(0, 10);
-    const ws = workspaces.find((w) => w.id === activeWorkspaceId);
-    const safeName = ((ws && ws.name) || 'wall').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'wall';
     a.href = url;
-    a.download = `wall-projector-${safeName}-${stamp}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   }
 
+  function sanitizeFilenamePart(name) {
+    return (name || '').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'wall';
+  }
+
+  // Returns `baseName`, or `baseName (2)`, `baseName (3)`, ... if it already
+  // collides with a current workspace — shared by both the single-workspace
+  // and bundle import paths so imported tabs never silently overwrite a name.
+  function dedupeWorkspaceName(baseName) {
+    let name = baseName;
+    let n = 2;
+    while (workspaces.some((w) => w.name === name)) {
+      name = `${baseName} (${n++})`;
+    }
+    return name;
+  }
+
+  function exportCurrentWorkspace() {
+    const ws = workspaces.find((w) => w.id === activeWorkspaceId);
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadJSON(state, `wall-projector-${sanitizeFilenamePart(ws && ws.name)}-${stamp}.json`);
+  }
+
+  function exportAllWorkspaces() {
+    // Flush the active workspace's pending debounced save first, so the
+    // on-disk copy read below (via readWorkspaceState) is current.
+    clearTimeout(saveTimer);
+    saveState();
+    const bundle = {
+      type: 'wall-projector-workspaces',
+      workspaces: workspaces.map((ws) => ({
+        name: ws.name,
+        state: readWorkspaceState(ws.id) || makeDefaultState(),
+      })),
+    };
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadJSON(bundle, `wall-projector-all-${stamp}.json`);
+  }
+
+  // Makes the given (already-created) workspace the active one and refreshes
+  // the whole UI — shared by both import paths below.
+  function activateImportedWorkspace(id) {
+    clearTimeout(saveTimer);
+    saveState();
+    activeWorkspaceId = id;
+    teardownDOM();
+    activateWorkspaceState(id);
+    hydrateFromState();
+    renderWorkspaceTabs();
+    saveWorkspaceIndex();
+  }
+
+  function addImportedWorkspace(name, wsState) {
+    const dedupedName = dedupeWorkspaceName(name);
+    const id = 'ws-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    try {
+      localStorage.setItem(workspaceStateKey(id), JSON.stringify(wsState));
+    } catch (err) {
+      console.warn('Could not save imported workspace', err);
+    }
+    workspaces.push({ id, name: dedupedName });
+    return id;
+  }
+
   function importProjectFromFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
-      let next;
+      let parsed;
       try {
-        next = normalizeState(JSON.parse(reader.result));
+        parsed = JSON.parse(reader.result);
       } catch (err) {
         alert("That doesn't look like a Wall Projector project file.");
         return;
       }
-      const baseName = file.name.replace(/\.json$/i, '') || 'Imported';
-      let name = baseName;
-      let n = 2;
-      while (workspaces.some((w) => w.name === name)) {
-        name = `${baseName} (${n++})`;
+
+      if (parsed && parsed.type === 'wall-projector-workspaces' && Array.isArray(parsed.workspaces)) {
+        // A bundle exported via "Export all workspaces" — adds one new tab
+        // per workspace inside it, and switches to the first one imported.
+        if (!parsed.workspaces.length) {
+          alert('That file has no workspaces in it.');
+          return;
+        }
+        let normalized;
+        try {
+          normalized = parsed.workspaces.map((entry) => ({
+            name: entry.name || 'Imported',
+            state: normalizeState(entry.state),
+          }));
+        } catch (err) {
+          alert("That doesn't look like a Wall Projector workspaces file.");
+          return;
+        }
+        let firstId = null;
+        normalized.forEach(({ name, state: wsState }) => {
+          const id = addImportedWorkspace(name, wsState);
+          if (firstId === null) firstId = id;
+        });
+        activateImportedWorkspace(firstId);
+        closeSettings();
+        return;
       }
-      const id = 'ws-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+      let next;
       try {
-        localStorage.setItem(workspaceStateKey(id), JSON.stringify(next));
+        next = normalizeState(parsed);
       } catch (err) {
-        console.warn('Could not save imported workspace', err);
+        alert("That doesn't look like a Wall Projector project file.");
+        return;
       }
-      workspaces.push({ id, name });
-      clearTimeout(saveTimer);
-      saveState();
-      activeWorkspaceId = id;
-      teardownDOM();
-      activateWorkspaceState(id);
-      hydrateFromState();
-      renderWorkspaceTabs();
-      saveWorkspaceIndex();
+      const id = addImportedWorkspace(file.name.replace(/\.json$/i, '') || 'Imported', next);
+      activateImportedWorkspace(id);
       closeSettings();
     };
     reader.onerror = () => alert('Could not read that file.');
     reader.readAsText(file);
   }
 
-  els.exportBtn.addEventListener('click', exportProject);
+  els.exportBtn.addEventListener('click', exportCurrentWorkspace);
+  els.exportAllBtn.addEventListener('click', exportAllWorkspaces);
   els.importBtn.addEventListener('click', () => els.importFileInput.click());
   els.importFileInput.addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
@@ -1495,6 +1600,8 @@
     loadUIPrefs();
     setSidebarCollapsed(uiPrefs.sidebarCollapsed);
     setLayersCompact(uiPrefs.layersCompact);
+    els.themeSelect.value = uiPrefs.theme;
+    applyTheme();
     loadWorkspaces();
     activateWorkspaceState(activeWorkspaceId);
     renderWorkspaceTabs();
