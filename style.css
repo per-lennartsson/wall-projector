@@ -922,6 +922,35 @@ body.layers-compact .layer-name {
      from JS in renderGrid(), since the cell size is a real-world measurement. */
 }
 
+/* ---------- Alignment guides (shown only while dragging an image) ---------- */
+
+#align-guides {
+  position: absolute;
+  inset: 0;
+  /* Above images (so lines aren't hidden underneath them) but still
+     non-interactive — purely a visual aid during a drag. */
+  z-index: 500;
+  pointer-events: none;
+}
+
+.align-guide {
+  position: absolute;
+  background: #ff2fa0;
+  box-shadow: 0 0 4px rgba(255, 47, 160, 0.8);
+}
+
+.align-guide-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.align-guide-h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
 /* ---------- Calibration ruler ---------- */
 
 .calibration-ruler {
