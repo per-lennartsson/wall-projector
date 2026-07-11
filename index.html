@@ -47,6 +47,7 @@
         <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
       </button>
 
+      <button id="measure-btn" class="icon-btn" title="Measure a distance on the wall (drag on empty wall space)" aria-label="Measure">📏</button>
       <button id="help-btn" class="icon-btn" title="How to use" aria-label="How to use">?</button>
       <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="7" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 7h12M4 7H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="13" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M18 13h4M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="19" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M11 19h11M2 19h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -101,7 +102,7 @@
 
       <main id="stage">
         <div id="wall-frame">
-          <div id="wall-canvas"></div>
+          <div id="wall-canvas"><div id="wall-warp"></div></div>
         </div>
         <p class="hint" id="stage-hint">Drag to move · corner handle to resize (aspect locked, hold Shift to stretch) · top handle to rotate · Delete key to remove</p>
       </main>
@@ -116,6 +117,7 @@
           <button type="button" class="settings-nav-item" data-section="appearance-section">Appearance</button>
           <button type="button" class="settings-nav-item" data-section="defaults-section">New image defaults</button>
           <button type="button" class="settings-nav-item" data-section="calibration-section">Calibration ruler</button>
+          <button type="button" class="settings-nav-item" data-section="keystone-section">Keystone correction</button>
           <button type="button" class="settings-nav-item" data-section="background-section">Wall background</button>
           <button type="button" class="settings-nav-item" data-section="grid-section">Reference grid</button>
           <button type="button" class="settings-nav-item" data-section="nail-section">Hanging point</button>
@@ -194,6 +196,22 @@
               <input id="ruler-visible" type="checkbox" checked />
             </div>
             <p class="hint">Shown at both the top and bottom of the wall. Project, then hold a tape measure to each line. If they don't measure the same, the projector has keystone distortion — adjust its position/lens-shift/keystone correction until both match.</p>
+          </section>
+
+          <section id="keystone-section">
+            <div class="prop-row">
+              <label>Enable</label>
+              <input id="keystone-enabled" type="checkbox" />
+            </div>
+            <div class="prop-row">
+              <label>Vertical (top/bottom)</label>
+              <input id="keystone-vertical" type="range" min="-30" max="30" step="1" value="0" />
+            </div>
+            <div class="prop-row">
+              <label>Horizontal (left/right)</label>
+              <input id="keystone-horizontal" type="range" min="-30" max="30" step="1" value="0" />
+            </div>
+            <p class="hint">Pre-warps the whole wall (images, grid, ruler) to compensate for a projector that isn't perfectly perpendicular to the wall. Adjust while projecting until the wall looks rectangular again. Off by default — the calibration ruler above is still the best way to check.</p>
           </section>
 
           <section id="background-section">

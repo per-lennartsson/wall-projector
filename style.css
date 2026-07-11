@@ -359,6 +359,44 @@ button.icon-btn.theme-light .icon-moon {
   display: block;
 }
 
+button.icon-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ---------- Measurement mode ---------- */
+/* Fully ephemeral — created/removed within a single drag gesture by
+   startMeasure(), never part of `state`. */
+
+#wall-canvas.measuring {
+  cursor: crosshair;
+}
+
+.measure-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  transform-origin: 0 50%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.measure-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+}
+
 /* ---------- Settings modal ---------- */
 
 .modal-overlay {
@@ -905,6 +943,16 @@ body.layers-compact .layer-name {
   max-height: 100%;
   overflow: hidden;
   border-radius: 2px;
+}
+
+/* Wraps everything drawn on the wall (images, grid, ruler) so keystone
+   correction can apply a single perspective transform to all of it at once,
+   while #wall-canvas itself keeps its untransformed size/position (fitCanvas
+   and all drag/resize math stay in that flat, undistorted percentage space —
+   the warp is a purely visual output layer on top). */
+#wall-warp {
+  position: absolute;
+  inset: 0;
 }
 
 /* ---------- Reference grid ---------- */
