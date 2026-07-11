@@ -22,6 +22,7 @@
     clearAll: document.getElementById('clear-all'),
     wallFrame: document.getElementById('wall-frame'),
     wallCanvas: document.getElementById('wall-canvas'),
+    wallWarp: document.getElementById('wall-warp'),
     topbar: document.getElementById('topbar'),
     sidebar: document.getElementById('sidebar'),
     rulerLength: document.getElementById('ruler-length'),
@@ -37,6 +38,10 @@
     defaultFrameColor: document.getElementById('default-frame-color'),
     defaultFrameWidth: document.getElementById('default-frame-width'),
     defaultFrameWidthUnit: document.getElementById('default-frame-width-unit'),
+    keystoneEnabled: document.getElementById('keystone-enabled'),
+    keystoneVertical: document.getElementById('keystone-vertical'),
+    keystoneHorizontal: document.getElementById('keystone-horizontal'),
+    measureBtn: document.getElementById('measure-btn'),
     settingsBtn: document.getElementById('settings-btn'),
     settingsModal: document.getElementById('settings-modal'),
     settingsClose: document.getElementById('settings-close'),
@@ -100,14 +105,74 @@
       defaults: { imageWidth: 30, frameEnabled: false, frameColor: 'black', frameWidth: 3 },
       grid: { enabled: false, size: 20, projectToo: false },
       nail: { enabled: false, color: '#ff3b3b', size: 10 },
+      keystone: { enabled: false, vertical: 0, horizontal: 0 },
     };
   }
 
   let state = makeDefaultState();
 
   let nextId = 1;
-  let selectedId = null;
+  let selectedIds = new Set();
   const elMap = new Map(); // id -> { root, imgEl }
+
+  // ---------- measurement mode ----------
+  // Fully ephemeral UI, like the selection state above — never persisted.
+  let measureModeActive = false;
+
+  // ---------- undo/redo ----------
+  // History of committed JSON-serialized `state` snapshots, current state is
+  // always the top of undoStack. Piggybacks on saveState() (the one choke
+  // point nearly every mutation already flows through via scheduleSave's
+  // debounce) rather than a full mutation-dispatcher rewrite. Deliberately
+  // module-level, not part of persisted `state` — same reasoning as selectedIds.
+  let undoStack = [];
+  let redoStack = [];
+  const UNDO_LIMIT = 50;
+
+  function pushUndoSnapshot() {
+    const snap = JSON.stringify(state);
+    if (undoStack.length && undoStack[undoStack.length - 1] === snap) return;
+    undoStack.push(snap);
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack = [];
+  }
+
+  function resetUndoHistory() {
+    undoStack = [JSON.stringify(state)];
+    redoStack = [];
+  }
+
+  // Full state restore + re-render, shared by undo() and redo(). Persists the
+  // restored state directly (bypassing saveState()/pushUndoSnapshot, which
+  // would otherwise corrupt the stacks by treating the restore itself as a
+  // new mutation) and rebuilds all DOM via the same teardown/hydrate pair
+  // already used for workspace switching and file import.
+  function restoreState(newState) {
+    state = normalizeState(newState);
+    nextId = state.images.reduce((m, im) => Math.max(m, im.id + 1), 1);
+    try {
+      localStorage.setItem(workspaceStateKey(activeWorkspaceId), JSON.stringify(state));
+    } catch (e) {
+      console.warn('Could not save state', e);
+    }
+    teardownDOM();
+    hydrateFromState();
+    selectImage(null);
+  }
+
+  function undo() {
+    if (undoStack.length < 2) return;
+    const current = undoStack.pop();
+    redoStack.push(current);
+    restoreState(JSON.parse(undoStack[undoStack.length - 1]));
+  }
+
+  function redo() {
+    if (!redoStack.length) return;
+    const snap = redoStack.pop();
+    undoStack.push(snap);
+    restoreState(JSON.parse(snap));
+  }
 
   // ---------- workspaces ----------
   const WORKSPACES_KEY = 'wallProjectorWorkspaces.v1';
@@ -126,6 +191,7 @@
     } catch (e) {
       console.warn('Could not save state', e);
     }
+    pushUndoSnapshot();
   }
   // Fills in defaults for any fields missing from an older save (or a file
   // from an older version of the app) and migrates deprecated formats.
@@ -146,6 +212,7 @@
     if (!parsed.grid) parsed.grid = { enabled: false, size: 20, projectToo: false };
     if (parsed.grid.projectToo === undefined) parsed.grid.projectToo = false;
     if (!parsed.nail) parsed.nail = { enabled: false, color: '#ff3b3b', size: 10 };
+    if (!parsed.keystone) parsed.keystone = { enabled: false, vertical: 0, horizontal: 0 };
     parsed.images.forEach((im) => {
       if (!im.frame) im.frame = { enabled: false, color: 'black', width: 3 };
       if (!Array.isArray(im.nails)) {
@@ -241,6 +308,7 @@
     teardownDOM();
     activateWorkspaceState(id);
     hydrateFromState();
+    resetUndoHistory();
     renderWorkspaceTabs();
     saveWorkspaceIndex();
   }
@@ -259,6 +327,7 @@
     teardownDOM();
     activateWorkspaceState(id);
     hydrateFromState();
+    resetUndoHistory();
     renderWorkspaceTabs();
     saveWorkspaceIndex();
   }
@@ -280,6 +349,7 @@
       teardownDOM();
       activateWorkspaceState(nextActive);
       hydrateFromState();
+      resetUndoHistory();
     }
     renderWorkspaceTabs();
     saveWorkspaceIndex();
@@ -486,6 +556,30 @@
     els.wallCanvas.style.width = w + 'px';
     els.wallCanvas.style.height = h + 'px';
     renderGrid(); // grid cell size is computed in px, so it must track canvas size changes too
+    applyKeystone(); // perspective distance is derived from canvas size too
+  }
+
+  // ---------- keystone correction ----------
+  // A trapezoid (converging top/bottom or left/right edges) can't be produced
+  // by a 2D affine transform — it's inherently a perspective effect. Rather
+  // than hand-deriving a matrix3d homography, this leans on the browser's
+  // built-in perspective projection: a single rotateX corrects a top/bottom
+  // width mismatch (projector mounted above/below center), a single rotateY
+  // corrects left/right (projector off to one side) — the same two axes
+  // real projectors' own "V/H keystone" controls expose. Applied to
+  // #wall-warp, so every child (images, grid, ruler) warps together.
+  function applyKeystone() {
+    if (!els.wallWarp) return;
+    if (!state.keystone.enabled || (!state.keystone.vertical && !state.keystone.horizontal)) {
+      els.wallWarp.style.transform = '';
+      return;
+    }
+    const rect = els.wallCanvas.getBoundingClientRect();
+    const perspectivePx = Math.max(rect.width, rect.height, 1) * 1.5;
+    els.wallWarp.style.transform =
+      `perspective(${perspectivePx}px) ` +
+      `rotateX(${state.keystone.vertical}deg) ` +
+      `rotateY(${state.keystone.horizontal}deg)`;
   }
 
   // ---------- images ----------
@@ -564,8 +658,52 @@
     const rec = elMap.get(id);
     if (rec) rec.root.remove();
     elMap.delete(id);
-    if (selectedId === id) selectImage(null);
+    if (selectedIds.has(id)) selectImage(null);
     renderLayersList();
+    scheduleSave();
+  }
+
+  // Removes every currently-selected image in one go (bulk delete / Delete key).
+  function bulkRemoveSelected() {
+    const ids = [...selectedIds];
+    ids.forEach((id) => {
+      state.images = state.images.filter((im) => im.id !== id);
+      const rec = elMap.get(id);
+      if (rec) rec.root.remove();
+      elMap.delete(id);
+    });
+    selectImage(null);
+    renderLayersList();
+    scheduleSave();
+  }
+
+  // Bulk version of bringToFront: preserves the selected images' relative
+  // order among themselves while moving the whole group above everything else.
+  function bulkBringToFront() {
+    const ids = new Set(selectedIds);
+    if (!ids.size) return;
+    const selected = state.images.filter((im) => ids.has(im.id));
+    state.images = state.images.filter((im) => !ids.has(im.id)).concat(selected);
+    reindexZ();
+    renderLayersList();
+    scheduleSave();
+  }
+
+  // Toggles frame.enabled for every selected image, using the *first*
+  // selected image's current value as the toggle direction so a mixed
+  // selection converges to one state rather than flipping each independently.
+  function bulkToggleFrame() {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const first = state.images.find((im) => im.id === ids[0]);
+    const nextEnabled = !(first && first.frame && first.frame.enabled);
+    ids.forEach((id) => {
+      const im = state.images.find((i) => i.id === id);
+      if (im && im.frame) {
+        im.frame.enabled = nextEnabled;
+        applyTransform(im);
+      }
+    });
     scheduleSave();
   }
 
@@ -625,7 +763,7 @@
     rotateHandle.className = 'handle handle-rotate';
     root.appendChild(rotateHandle);
 
-    els.wallCanvas.appendChild(root);
+    els.wallWarp.appendChild(root);
     elMap.set(imgState.id, { root, imgEl, frameEl, nailEls: [] });
     renderNailDots(imgState); // also applies the initial transform
 
@@ -634,8 +772,17 @@
     root.addEventListener('pointerdown', (e) => {
       if (e.target === resizeHandle || e.target === rotateHandle || e.target.classList.contains('nail-dot')) return;
       e.preventDefault();
-      selectImage(imgState.id);
-      bringToFront(imgState.id);
+      const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+      const partOfExistingMultiSelection = selectedIds.has(imgState.id) && selectedIds.size > 1;
+      if (additive) {
+        selectImage(imgState.id, { additive: true });
+      } else if (!partOfExistingMultiSelection) {
+        // A plain click on an image that's already part of a multi-selection
+        // keeps the whole selection intact, so the drag below can move the
+        // group — only replace the selection (and bring-to-front) when it isn't.
+        selectImage(imgState.id);
+        bringToFront(imgState.id);
+      }
       startDrag(e, imgState);
     });
 
@@ -729,45 +876,85 @@
   }
 
   // ---------- selection ----------
-  function selectImage(id) {
-    selectedId = id;
+  // id === null clears the whole selection. Otherwise, additive (shift/ctrl/
+  // cmd-click) toggles that id's membership in the set; a plain click
+  // replaces the set with just that one id.
+  function selectImage(id, opts = {}) {
+    const { additive = false } = opts;
+    if (id === null) {
+      selectedIds.clear();
+    } else if (additive) {
+      if (selectedIds.has(id)) selectedIds.delete(id);
+      else selectedIds.add(id);
+    } else {
+      selectedIds = new Set([id]);
+    }
     elMap.forEach((rec, imId) => {
-      rec.root.classList.toggle('selected', imId === id);
+      rec.root.classList.toggle('selected', selectedIds.has(imId));
     });
     document.querySelectorAll('.layer-item').forEach((li) => {
-      li.classList.toggle('selected', Number(li.dataset.id) === id);
+      li.classList.toggle('selected', selectedIds.has(Number(li.dataset.id)));
     });
     renderProps();
   }
 
+  // Returns the "primary" selected image (most-recently added to the set) —
+  // the single-image call sites (resize/rotate/nail-drag, props panel body,
+  // arrow-key nudge) all key off this, unchanged from the old singular model.
   function getSelected() {
-    return state.images.find((im) => im.id === selectedId) || null;
+    if (!selectedIds.size) return null;
+    const id = [...selectedIds][selectedIds.size - 1];
+    return state.images.find((im) => im.id === id) || null;
   }
 
   // ---------- drag / resize / rotate ----------
+  // If the dragged image is part of a multi-image selection, every selected
+  // image moves together by the same screen-space delta (a pure translation,
+  // so it's correct regardless of each image's own rotation — unlike
+  // resize/rotate, which stay single-image-only, see startResize/startRotate).
   function startDrag(e, imgState) {
     const rect = els.wallCanvas.getBoundingClientRect();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startXPct = imgState.xPct;
-    const startYPct = imgState.yPct;
+    const targets =
+      selectedIds.has(imgState.id) && selectedIds.size > 1
+        ? state.images.filter((im) => selectedIds.has(im.id))
+        : [imgState];
+    const starts = targets.map((im) => ({ im, xPct: im.xPct, yPct: im.yPct }));
 
     function onMove(ev) {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
-      imgState.xPct = startXPct + (dx / rect.width) * 100;
-      imgState.yPct = startYPct + (dy / rect.height) * 100;
+      const dxPct = (dx / rect.width) * 100;
+      const dyPct = (dy / rect.height) * 100;
 
-      if (imgState.snapToGrid) {
-        imgState.xPct = cmToPctX(snapCmToGrid(pctToCmX(imgState.xPct)));
-        imgState.yPct = cmToPctY(snapCmToGrid(pctToCmY(imgState.yPct)));
+      if (starts.length > 1) {
+        // Group drag: pure rigid translation, no per-image grid/alignment
+        // snapping — snapping would apply a different correction to each
+        // image and break the group's relative layout.
+        starts.forEach(({ im, xPct, yPct }) => {
+          im.xPct = xPct + dxPct;
+          im.yPct = yPct + dyPct;
+          applyTransform(im);
+        });
+        renderProps();
+        return;
       }
 
-      const matches = applyAlignmentSnap(imgState, rect);
+      const { im, xPct, yPct } = starts[0];
+      im.xPct = xPct + dxPct;
+      im.yPct = yPct + dyPct;
+
+      if (im.snapToGrid) {
+        im.xPct = cmToPctX(snapCmToGrid(pctToCmX(im.xPct)));
+        im.yPct = cmToPctY(snapCmToGrid(pctToCmY(im.yPct)));
+      }
+
+      const matches = applyAlignmentSnap(im, rect);
       renderAlignGuides(matches);
 
-      applyTransform(imgState);
-      if (selectedId === imgState.id) renderProps();
+      applyTransform(im);
+      if (selectedIds.has(im.id)) renderProps();
     }
     function onUp() {
       document.removeEventListener('pointermove', onMove);
@@ -807,7 +994,7 @@
       imgState.wPct = newWPct;
       imgState.hPct = newHPct;
       applyTransform(imgState);
-      if (selectedId === imgState.id) renderProps();
+      if (selectedIds.has(imgState.id)) renderProps();
     }
     function onUp() {
       document.removeEventListener('pointermove', onMove);
@@ -833,7 +1020,7 @@
       if (ev.shiftKey) deg = Math.round(deg / 15) * 15;
       imgState.rotation = deg;
       applyTransform(imgState);
-      if (selectedId === imgState.id) renderProps();
+      if (selectedIds.has(imgState.id)) renderProps();
     }
     function onUp() {
       document.removeEventListener('pointermove', onMove);
@@ -862,7 +1049,7 @@
       nail.xCm = scale > 0 ? startXCm + dx / scale : startXCm;
       nail.yCm = scale > 0 ? startYCm + dy / scale : startYCm;
       applyTransform(imgState);
-      if (selectedId === imgState.id) renderProps();
+      if (selectedIds.has(imgState.id)) renderProps();
     }
     function onUp() {
       document.removeEventListener('pointermove', onMove);
@@ -871,6 +1058,67 @@
     }
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+  }
+
+  // ---------- measurement mode ----------
+  function toggleMeasureMode() {
+    measureModeActive = !measureModeActive;
+    els.measureBtn.classList.toggle('active', measureModeActive);
+    els.wallCanvas.classList.toggle('measuring', measureModeActive);
+    selectImage(null); // avoid measurement clicks fighting with drag handles
+  }
+
+  // Click-drag between two arbitrary points on empty wall space, showing a
+  // live distance readout in the wall's unit. Fully ephemeral — the line/
+  // label elements are created and removed within this one gesture, nothing
+  // is added to `state` or elMap. Reuses the same screen-px -> percent -> cm
+  // conversion already used by startNailDrag/addImage above.
+  function startMeasure(e) {
+    const rect = els.wallCanvas.getBoundingClientRect();
+    const line = document.createElement('div');
+    line.className = 'measure-line';
+    const label = document.createElement('div');
+    label.className = 'measure-label';
+    els.wallWarp.appendChild(line);
+    els.wallWarp.appendChild(label);
+
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+
+    function update(ev) {
+      const x0Pct = ((x0 - rect.left) / rect.width) * 100;
+      const y0Pct = ((y0 - rect.top) / rect.height) * 100;
+      const x1Pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      const y1Pct = ((ev.clientY - rect.top) / rect.height) * 100;
+      const dxCm = pctToCmX(x1Pct - x0Pct);
+      const dyCm = pctToCmY(y1Pct - y0Pct);
+      const distCm = Math.hypot(dxCm, dyCm);
+
+      const x0Px = x0 - rect.left;
+      const y0Px = y0 - rect.top;
+      const x1Px = ev.clientX - rect.left;
+      const y1Px = ev.clientY - rect.top;
+      const lengthPx = Math.hypot(x1Px - x0Px, y1Px - y0Px);
+      const angleDeg = (Math.atan2(y1Px - y0Px, x1Px - x0Px) * 180) / Math.PI;
+
+      line.style.left = x0Px + 'px';
+      line.style.top = y0Px + 'px';
+      line.style.width = lengthPx + 'px';
+      line.style.transform = `rotate(${angleDeg}deg)`;
+
+      label.textContent = `${distCm.toFixed(1)} ${state.wall.unit}`;
+      label.style.left = (x0Px + x1Px) / 2 + 'px';
+      label.style.top = (y0Px + y1Px) / 2 + 'px';
+    }
+    function finish() {
+      document.removeEventListener('pointermove', update);
+      document.removeEventListener('pointerup', finish);
+      line.remove();
+      label.remove();
+    }
+    update(e);
+    document.addEventListener('pointermove', update);
+    document.addEventListener('pointerup', finish);
   }
 
   // ---------- layers list ----------
@@ -883,7 +1131,7 @@
       const li = document.createElement('li');
       li.className = 'layer-item';
       li.dataset.id = String(im.id);
-      if (im.id === selectedId) li.classList.add('selected');
+      if (selectedIds.has(im.id)) li.classList.add('selected');
 
       const thumb = document.createElement('img');
       thumb.src = im.src;
@@ -913,7 +1161,9 @@
       });
       li.appendChild(delBtn);
 
-      li.addEventListener('click', () => selectImage(im.id));
+      li.addEventListener('click', (e) => {
+        selectImage(im.id, { additive: e.shiftKey || e.ctrlKey || e.metaKey });
+      });
 
       els.layersList.appendChild(li);
     }
@@ -921,6 +1171,19 @@
 
   // ---------- props panel ----------
   function renderProps() {
+    if (selectedIds.size > 1) {
+      els.propsPanel.innerHTML = `
+        <p class="hint">${selectedIds.size} images selected.</p>
+        <div class="prop-row"><button id="prop-bulk-front" type="button">Bring all to front</button></div>
+        <div class="prop-row"><button id="prop-bulk-frame-toggle" type="button">Toggle frame</button></div>
+        <div class="prop-row"><button id="prop-bulk-delete" type="button" class="danger-outline">Delete selected</button></div>
+        <p class="hint">Drag any selected image to move the whole selection together. Resize/rotate act on a single image — click one alone first.</p>
+      `;
+      document.getElementById('prop-bulk-front').addEventListener('click', bulkBringToFront);
+      document.getElementById('prop-bulk-frame-toggle').addEventListener('click', bulkToggleFrame);
+      document.getElementById('prop-bulk-delete').addEventListener('click', bulkRemoveSelected);
+      return;
+    }
     const im = getSelected();
     if (!im) {
       els.propsPanel.innerHTML = '<p class="hint">Nothing selected.</p>';
@@ -1143,7 +1406,7 @@
     const rulerLabelEl = document.createElement('span');
     rulerLabelEl.className = 'ruler-label';
     rulerEl.appendChild(rulerLabelEl);
-    els.wallCanvas.appendChild(rulerEl);
+    els.wallWarp.appendChild(rulerEl);
     rulerEls.push({ rulerEl, rulerLabelEl });
   }
 
@@ -1166,7 +1429,7 @@
   function createGridElement() {
     gridEl = document.createElement('div');
     gridEl.id = 'reference-grid';
-    els.wallCanvas.appendChild(gridEl);
+    els.wallWarp.appendChild(gridEl);
   }
 
   // A tiled SVG (dashed line along each cell's top+left edge) reads as a
@@ -1206,7 +1469,7 @@
   function createAlignGuidesElement() {
     alignGuidesEl = document.createElement('div');
     alignGuidesEl.id = 'align-guides';
-    els.wallCanvas.appendChild(alignGuidesEl);
+    els.wallWarp.appendChild(alignGuidesEl);
   }
 
   // Bounding-box edges of an image in px relative to the canvas, ignoring
@@ -1435,6 +1698,7 @@
   // ---------- events ----------
   els.applySize.addEventListener('click', applyWallSize);
   els.presentBtn.addEventListener('click', togglePresent);
+  els.measureBtn.addEventListener('click', toggleMeasureMode);
   els.clearAll.addEventListener('click', clearAll);
 
   els.fileInput.addEventListener('change', (e) => {
@@ -1545,42 +1809,80 @@
     scheduleSave();
   });
 
+  els.keystoneEnabled.addEventListener('change', (e) => {
+    state.keystone.enabled = e.target.checked;
+    applyKeystone();
+    scheduleSave();
+  });
+  els.keystoneVertical.addEventListener('input', (e) => {
+    state.keystone.vertical = parseFloat(e.target.value) || 0;
+    applyKeystone();
+    scheduleSave();
+  });
+  els.keystoneHorizontal.addEventListener('input', (e) => {
+    state.keystone.horizontal = parseFloat(e.target.value) || 0;
+    applyKeystone();
+    scheduleSave();
+  });
+
   els.wallCanvas.addEventListener('pointerdown', (e) => {
-    if (e.target === els.wallCanvas) selectImage(null);
+    if (e.target !== els.wallCanvas && e.target !== els.wallWarp) return;
+    if (measureModeActive) {
+      startMeasure(e);
+      return;
+    }
+    selectImage(null);
   });
 
   document.addEventListener('keydown', (e) => {
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
-    const im = getSelected();
-    if (!im) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod) {
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+    }
+    if (!selectedIds.size) return;
+    const targets = state.images.filter((im) => selectedIds.has(im.id));
+    if (!targets.length) return;
     const step = e.shiftKey ? 2 : 0.5;
     let handled = true;
     switch (e.key) {
       case 'Delete':
       case 'Backspace':
-        removeImage(im.id);
+        bulkRemoveSelected();
         break;
       case 'ArrowLeft':
-        im.xPct -= step;
+        targets.forEach((im) => (im.xPct -= step));
         break;
       case 'ArrowRight':
-        im.xPct += step;
+        targets.forEach((im) => (im.xPct += step));
         break;
       case 'ArrowUp':
-        im.yPct -= step;
+        targets.forEach((im) => (im.yPct -= step));
         break;
       case 'ArrowDown':
-        im.yPct += step;
+        targets.forEach((im) => (im.yPct += step));
         break;
       default:
         handled = false;
     }
     if (handled) {
       e.preventDefault();
-      applyTransform(im);
-      renderProps();
-      scheduleSave();
+      if (e.key !== 'Delete' && e.key !== 'Backspace') {
+        targets.forEach(applyTransform);
+        renderProps();
+        scheduleSave();
+      }
     }
   });
 
@@ -1622,6 +1924,11 @@
     els.nailSize.value = state.nail.size;
     applyNailGlobalStyle();
 
+    els.keystoneEnabled.checked = state.keystone.enabled;
+    els.keystoneVertical.value = state.keystone.vertical;
+    els.keystoneHorizontal.value = state.keystone.horizontal;
+    applyKeystone();
+
     state.images.forEach(renderImage);
     reindexZ();
     renderLayersList();
@@ -1643,7 +1950,7 @@
     }
     rulerEls.forEach(({ rulerEl }) => rulerEl.remove());
     rulerEls = [];
-    selectedId = null;
+    selectedIds.clear();
   }
 
   // ---------- export / import ----------
@@ -1707,6 +2014,7 @@
     teardownDOM();
     activateWorkspaceState(id);
     hydrateFromState();
+    resetUndoHistory();
     renderWorkspaceTabs();
     saveWorkspaceIndex();
   }
@@ -1806,6 +2114,7 @@
     activateWorkspaceState(activeWorkspaceId);
     renderWorkspaceTabs();
     hydrateFromState();
+    resetUndoHistory();
   }
 
   init();
