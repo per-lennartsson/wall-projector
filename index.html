@@ -10,43 +10,65 @@
   <div id="app">
 
     <header id="topbar">
-      <h1>Wall Projector</h1>
-      <span id="app-version" class="app-version" title="Build version"></span>
-
-      <div id="workspace-tabs" class="tab-strip">
-        <button id="workspace-add-btn" class="icon-btn" title="New workspace" aria-label="New workspace">+</button>
+      <div class="brand">
+        <div class="brand-mark">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="13" rx="1.5" stroke="white" stroke-width="2"/><path d="M8 21h8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h1>Wall Projector</h1>
+        <span id="app-version" class="app-version" title="Build version"></span>
       </div>
 
-      <div class="field-group">
-        <label>Wall size</label>
-        <input id="wall-width" type="number" min="1" step="0.1" value="300" />
-        <span class="x">×</span>
-        <input id="wall-height" type="number" min="1" step="0.1" value="200" />
-        <select id="wall-unit">
-          <option value="cm" selected>cm</option>
-          <option value="m">m</option>
-          <option value="in">in</option>
-          <option value="px">px</option>
-        </select>
-        <button id="apply-size">Apply</button>
+      <div class="topbar-divider"></div>
+
+      <div id="workspace-tabs" class="tab-strip">
+        <button id="workspace-add-btn" class="icon-btn" title="New workspace" aria-label="New workspace">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></svg>
+        </button>
       </div>
 
       <div class="spacer"></div>
 
+      <div class="field-group">
+        <label>Wall</label>
+        <input id="wall-width" type="number" min="1" step="0.1" value="300" />
+        <span class="x">×</span>
+        <input id="wall-height" type="number" min="1" step="0.1" value="200" />
+        <div id="wall-unit-group" class="segmented">
+          <button type="button" data-unit="cm" class="active">cm</button>
+          <button type="button" data-unit="m">m</button>
+          <button type="button" data-unit="in">in</button>
+          <button type="button" data-unit="px">px</button>
+        </div>
+        <button id="apply-size">Apply</button>
+      </div>
+
+      <button id="theme-toggle-btn" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      </button>
+
       <button id="help-btn" class="icon-btn" title="How to use" aria-label="How to use">?</button>
-      <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
-      <button id="present-btn" class="primary">Project ▶</button>
+      <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="7" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 7h12M4 7H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="13" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M18 13h4M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="19" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M11 19h11M2 19h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button id="present-btn" class="primary">
+        <svg id="present-btn-icon" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8-14 8V4z"/></svg>
+        <span id="present-btn-label">Project</span>
+      </button>
     </header>
 
     <div id="body-layout">
 
       <aside id="sidebar">
-        <button id="sidebar-collapse-btn" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
+        <button id="sidebar-collapse-btn" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
 
         <section>
           <h2>Add image</h2>
           <label class="file-btn">
-            Upload image(s)
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 15l-5.5-5-9.5 8" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Upload image(s)</span>
             <input id="file-input" type="file" accept="image/*" multiple hidden />
           </label>
 
@@ -59,7 +81,9 @@
         <section id="layers-section">
           <div class="section-header">
             <h2>Layers</h2>
-            <button id="layers-compact-toggle" class="icon-btn" title="Toggle compact rows" aria-label="Toggle compact rows">☰</button>
+            <button id="layers-compact-toggle" class="icon-btn" title="Toggle compact rows" aria-label="Toggle compact rows">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
           </div>
           <ul id="layers-list"></ul>
           <p id="layers-empty" class="hint">No images yet — upload or paste a link.</p>
@@ -86,27 +110,40 @@
 
     <div id="settings-modal" class="modal-overlay hidden">
       <div class="modal-panel">
-        <div class="modal-header">
-          <h2>Settings</h2>
-          <button id="settings-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
-        </div>
-        <div class="modal-body">
+
+        <nav class="settings-nav">
+          <div class="settings-nav-title">Settings</div>
+          <button type="button" class="settings-nav-item" data-section="appearance-section">Appearance</button>
+          <button type="button" class="settings-nav-item" data-section="defaults-section">New image defaults</button>
+          <button type="button" class="settings-nav-item" data-section="calibration-section">Calibration ruler</button>
+          <button type="button" class="settings-nav-item" data-section="background-section">Wall background</button>
+          <button type="button" class="settings-nav-item" data-section="grid-section">Reference grid</button>
+          <button type="button" class="settings-nav-item" data-section="nail-section">Hanging point</button>
+          <button type="button" class="settings-nav-item" data-section="project-file-section">Project file</button>
+        </nav>
+
+        <div class="settings-content">
+          <div class="modal-header">
+            <h2 id="settings-title">Appearance</h2>
+            <button id="settings-close" class="icon-btn" title="Close" aria-label="Close">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
 
           <section id="appearance-section">
-            <h2>Appearance</h2>
             <div class="prop-row">
               <label>Theme</label>
-              <select id="theme-select">
-                <option value="system">System default</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
+              <div id="theme-picker" class="segmented">
+                <button type="button" data-theme-choice="system">System</button>
+                <button type="button" data-theme-choice="light">Light</button>
+                <button type="button" data-theme-choice="dark" class="active">Dark</button>
+              </div>
             </div>
-            <p class="hint">"System default" follows your OS/browser's light or dark setting automatically.</p>
+            <p class="hint">"System" follows your OS/browser's light or dark setting automatically.</p>
           </section>
 
           <section id="project-file-section">
-            <h2>Project file</h2>
             <div class="button-row">
               <button id="export-btn" type="button">Export this workspace…</button>
               <button id="export-all-btn" type="button">Export all workspaces…</button>
@@ -119,7 +156,6 @@
           </section>
 
           <section id="defaults-section">
-            <h2>New image defaults</h2>
             <div class="prop-row">
               <label>Width (<span id="default-width-unit">cm</span>)</label>
               <input id="default-width" type="number" min="1" step="1" value="30" />
@@ -145,7 +181,6 @@
           </section>
 
           <section id="calibration-section">
-            <h2>Calibration ruler</h2>
             <div class="prop-row">
               <label>Length (<span id="ruler-unit-label">cm</span>)</label>
               <input id="ruler-length" type="number" min="1" step="1" value="100" />
@@ -162,7 +197,6 @@
           </section>
 
           <section id="background-section">
-            <h2>Wall background</h2>
             <div class="prop-row">
               <label>Show color</label>
               <input id="bg-enabled" type="checkbox" />
@@ -179,7 +213,6 @@
           </section>
 
           <section id="grid-section">
-            <h2>Reference grid</h2>
             <div class="prop-row">
               <label>Show grid</label>
               <input id="grid-enabled" type="checkbox" />
@@ -196,7 +229,6 @@
           </section>
 
           <section id="nail-section">
-            <h2>Hanging point</h2>
             <div class="prop-row">
               <label>Show dots</label>
               <input id="nail-enabled" type="checkbox" />
@@ -212,6 +244,7 @@
             <p class="hint">Marks where to put the nail(s) on the wall for each image — visible while editing and while projecting. Color/size apply everywhere; each image can have multiple nails, positioned in cm from its top-left corner (drag the dot, or use Selected Image below). New images start with one nail centered.</p>
           </section>
 
+          </div>
         </div>
       </div>
     </div>
@@ -220,49 +253,75 @@
       <div class="modal-panel">
         <div class="modal-header">
           <h2>How to use</h2>
-          <button id="help-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+          <button id="help-close" class="icon-btn" title="Close" aria-label="Close">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
         </div>
         <div class="modal-body">
 
-          <section>
-            <h2>1. Set the wall size</h2>
-            <p class="hint">Enter the real width and height of the wall (or screen) at the top, in whatever unit you like, then hit Apply. Everything else on this page — image sizes, frame widths, the calibration ruler, the grid — is measured in that same real-world unit from then on.</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">1</div>
+            <div>
+              <h2>Set the wall size</h2>
+              <p class="hint">Enter the real width and height of the wall (or screen) at the top, in whatever unit you like, then hit Apply. Everything else on this page — image sizes, frame widths, the calibration ruler, the grid — is measured in that same real-world unit from then on.</p>
+            </div>
+          </div>
 
-          <section>
-            <h2>2. Add images</h2>
-            <p class="hint">Upload file(s) or paste an image URL in the sidebar. New images default to the width set in Settings → New image defaults (30cm out of the box).</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">2</div>
+            <div>
+              <h2>Add images</h2>
+              <p class="hint">Upload file(s) or paste an image URL in the sidebar. New images default to the width set in Settings → New image defaults (30cm out of the box).</p>
+            </div>
+          </div>
 
-          <section>
-            <h2>3. Position them</h2>
-            <p class="hint">Drag an image to move it. Drag its corner handle to resize (aspect ratio stays locked — hold Shift to stretch freely). Drag the top handle to rotate. For exact placement, select an image and type X/Y/Width/Height directly in the sidebar. Delete key removes the selected image.</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">3</div>
+            <div>
+              <h2>Position them</h2>
+              <p class="hint">Drag an image to move it. Drag its corner handle to resize (aspect ratio stays locked — hold Shift to stretch freely). Drag the top handle to rotate. For exact placement, select an image and type X/Y/Width/Height directly in the sidebar. Delete key removes the selected image.</p>
+            </div>
+          </div>
 
-          <section>
-            <h2>4. Optional: add a frame</h2>
-            <p class="hint">Turn on Frame for the selected image and pick a color (light/dark wood, black, white) and width. The frame adds onto the photo's size rather than shrinking it — Width/Height in the sidebar always describe the photo itself.</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">4</div>
+            <div>
+              <h2>Optional: add a frame</h2>
+              <p class="hint">Turn on Frame for the selected image and pick a color (light/dark wood, black, white) and width. The frame adds onto the photo's size rather than shrinking it — Width/Height in the sidebar always describe the photo itself.</p>
+            </div>
+          </div>
 
-          <section>
-            <h2>5. Calibrate the projector</h2>
-            <p class="hint">Turn on the Calibration ruler (Settings → gear icon) and project. Hold a tape measure to the lines at the top and bottom of the wall — if they don't measure the same real length, the projector has keystone distortion; adjust its position or keystone correction until both match.</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">5</div>
+            <div>
+              <h2>Calibrate the projector</h2>
+              <p class="hint">Turn on the Calibration ruler (Settings → gear icon) and project. Hold a tape measure to the lines at the top and bottom of the wall — if they don't measure the same real length, the projector has keystone distortion; adjust its position or keystone correction until both match.</p>
+            </div>
+          </div>
 
-          <section>
-            <h2>6. Optional: mark nail positions</h2>
-            <p class="hint">Turn on hanging-point dots (Settings) to mark where each nail should go. Drag a dot to position it, or use "+ Add nail" for images that need more than one. Positions are in cm from the photo's own top-left corner, so they stay accurate if you resize the wall.</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">6</div>
+            <div>
+              <h2>Optional: mark nail positions</h2>
+              <p class="hint">Turn on hanging-point dots (Settings) to mark where each nail should go. Drag a dot to position it, or use "+ Add nail" for images that need more than one. Positions are in cm from the photo's own top-left corner, so they stay accurate if you resize the wall.</p>
+            </div>
+          </div>
 
-          <section>
-            <h2>7. Project</h2>
-            <p class="hint">Click Project (top right) to go fullscreen on your projector/second display — the sidebar and toolbar hide, and the wall fills the whole screen at the same position it was in the editor, so nothing jumps. Press Escape or click Exit to come back.</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">7</div>
+            <div>
+              <h2>Project</h2>
+              <p class="hint">Click Project (top right) to go fullscreen on your projector/second display — the sidebar and toolbar hide, and the wall fills the whole screen at the same position it was in the editor, so nothing jumps. Press Escape or click Exit to come back.</p>
+            </div>
+          </div>
 
-          <section>
-            <h2>8. Save your work</h2>
-            <p class="hint">Everything auto-saves to this browser. Use the tabs at the top to keep multiple walls/workspaces side by side — click + for a new one, click a tab's name to rename it. To back up or move workspaces to another computer, use Settings → Project file → Export this workspace (just the current tab) or Export all workspaces (every tab, one file) — Import loads either kind of file back in as new tab(s).</p>
-          </section>
+          <div class="help-step">
+            <div class="step-num">8</div>
+            <div>
+              <h2>Save your work</h2>
+              <p class="hint">Everything auto-saves to this browser. Use the tabs at the top to keep multiple walls/workspaces side by side — click + for a new one, click a tab's name to rename it. To back up or move workspaces to another computer, use Settings → Project file → Export this workspace (just the current tab) or Export all workspaces (every tab, one file) — Import loads either kind of file back in as new tab(s).</p>
+            </div>
+          </div>
 
         </div>
       </div>

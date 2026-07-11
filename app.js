@@ -10,7 +10,7 @@
   const els = {
     wallWidth: document.getElementById('wall-width'),
     wallHeight: document.getElementById('wall-height'),
-    wallUnit: document.getElementById('wall-unit'),
+    wallUnitGroup: document.getElementById('wall-unit-group'),
     applySize: document.getElementById('apply-size'),
     presentBtn: document.getElementById('present-btn'),
     fileInput: document.getElementById('file-input'),
@@ -56,11 +56,38 @@
     importFileInput: document.getElementById('import-file-input'),
     sidebarCollapseBtn: document.getElementById('sidebar-collapse-btn'),
     layersCompactToggle: document.getElementById('layers-compact-toggle'),
-    themeSelect: document.getElementById('theme-select'),
+    themePicker: document.getElementById('theme-picker'),
+    themeToggleBtn: document.getElementById('theme-toggle-btn'),
     appVersion: document.getElementById('app-version'),
     workspaceTabs: document.getElementById('workspace-tabs'),
     workspaceAddBtn: document.getElementById('workspace-add-btn'),
+    settingsNavItems: document.querySelectorAll('.settings-nav-item'),
+    settingsTitle: document.getElementById('settings-title'),
   };
+
+  // ---------- segmented button groups (unit picker, theme picker) ----------
+  // Small helper shared by the wall-unit and theme pickers: both are a
+  // container of <button data-*="value"> where exactly one has `.active`.
+  function segmentedValue(container, dataAttr) {
+    const active = container.querySelector('button.active');
+    return active ? active.dataset[dataAttr] : null;
+  }
+  function setSegmentedValue(container, dataAttr, value) {
+    container.querySelectorAll('button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset[dataAttr] === value);
+    });
+  }
+  function getWallUnit() {
+    return segmentedValue(els.wallUnitGroup, 'unit');
+  }
+  function setWallUnit(unit) {
+    setSegmentedValue(els.wallUnitGroup, 'unit', unit);
+  }
+  els.wallUnitGroup.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-unit]');
+    if (!btn) return;
+    setWallUnit(btn.dataset.unit);
+  });
 
   const FRAME_COLORS = ['light-wood', 'dark-wood', 'black', 'white'];
 
@@ -341,7 +368,7 @@
   function setSidebarCollapsed(collapsed) {
     uiPrefs.sidebarCollapsed = collapsed;
     document.body.classList.toggle('sidebar-collapsed', collapsed);
-    els.sidebarCollapseBtn.textContent = collapsed ? '▶' : '◀';
+    els.sidebarCollapseBtn.classList.toggle('collapsed', collapsed);
     els.sidebarCollapseBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
     saveUIPrefs();
   }
@@ -360,7 +387,13 @@
     return systemThemeQuery && systemThemeQuery.matches ? 'light' : 'dark';
   }
   function applyTheme() {
-    document.documentElement.setAttribute('data-theme', resolveEffectiveTheme());
+    const effective = resolveEffectiveTheme();
+    document.documentElement.setAttribute('data-theme', effective);
+    // Swaps which of the two SVGs inside the theme-toggle button is shown
+    // (sun when currently dark, so clicking it suggests switching to light —
+    // and vice versa), independent of the Settings picker's own state.
+    els.themeToggleBtn.classList.toggle('theme-dark', effective === 'dark');
+    els.themeToggleBtn.classList.toggle('theme-light', effective === 'light');
   }
   function setTheme(theme) {
     uiPrefs.theme = theme;
@@ -387,7 +420,7 @@
       hCm: pctToCmY(im.hPct),
     }));
 
-    state.wall = { width: w, height: h, unit: els.wallUnit.value };
+    state.wall = { width: w, height: h, unit: getWallUnit() };
 
     real.forEach(({ im, xCm, yCm, wCm, hCm }) => {
       im.xPct = cmToPctX(xCm);
@@ -889,11 +922,13 @@
     };
 
     els.propsPanel.innerHTML = `
-      <div class="prop-row"><label>X (${unit})</label><input type="number" step="0.5" id="prop-x" value="${xVal.toFixed(1)}"></div>
-      <div class="prop-row"><label>Y (${unit})</label><input type="number" step="0.5" id="prop-y" value="${yVal.toFixed(1)}"></div>
-      <div class="prop-row"><label>Width (${unit})</label><input type="number" step="0.5" min="0.1" id="prop-w" value="${wVal.toFixed(1)}"></div>
-      <div class="prop-row"><label>Height (${unit})</label><input type="number" step="0.5" min="0.1" id="prop-h" value="${hVal.toFixed(1)}"></div>
-      <div class="prop-row"><label>Rotation °</label><input type="number" step="1" id="prop-r" value="${Math.round(im.rotation)}"></div>
+      <div class="prop-grid">
+        <div class="prop-row"><label>X (${unit})</label><input type="number" step="0.5" id="prop-x" value="${xVal.toFixed(1)}"></div>
+        <div class="prop-row"><label>Y (${unit})</label><input type="number" step="0.5" id="prop-y" value="${yVal.toFixed(1)}"></div>
+        <div class="prop-row"><label>Width (${unit})</label><input type="number" step="0.5" min="0.1" id="prop-w" value="${wVal.toFixed(1)}"></div>
+        <div class="prop-row"><label>Height (${unit})</label><input type="number" step="0.5" min="0.1" id="prop-h" value="${hVal.toFixed(1)}"></div>
+        <div class="prop-row span-2"><label>Rotation °</label><input type="number" step="1" id="prop-r" value="${Math.round(im.rotation)}"></div>
+      </div>
       <div class="prop-row"><label>Lock aspect ratio</label><input type="checkbox" id="prop-aspect-locked" ${im.aspectLocked ? 'checked' : ''}></div>
       <div class="prop-row"><label>Crop to fit</label><input type="checkbox" id="prop-crop" ${im.crop ? 'checked' : ''}></div>
       <p class="hint">${
@@ -1171,7 +1206,20 @@
   }
 
   // ---------- settings & help modals ----------
-  function openSettings() {
+  let settingsSection = 'appearance-section';
+  function setSettingsSection(sectionId) {
+    settingsSection = sectionId;
+    els.settingsNavItems.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.section === sectionId);
+    });
+    document.querySelectorAll('#settings-modal .modal-body section').forEach((sec) => {
+      sec.classList.toggle('active-section', sec.id === sectionId);
+    });
+    const activeNavItem = document.querySelector(`.settings-nav-item[data-section="${sectionId}"]`);
+    els.settingsTitle.textContent = activeNavItem ? activeNavItem.textContent : '';
+  }
+  function openSettings(sectionId) {
+    setSettingsSection(sectionId || settingsSection);
     els.settingsModal.classList.remove('hidden');
   }
   function closeSettings() {
@@ -1184,7 +1232,11 @@
     els.helpModal.classList.add('hidden');
   }
 
-  els.settingsBtn.addEventListener('click', openSettings);
+  els.settingsNavItems.forEach((btn) => {
+    btn.addEventListener('click', () => setSettingsSection(btn.dataset.section));
+  });
+
+  els.settingsBtn.addEventListener('click', () => openSettings());
   els.settingsClose.addEventListener('click', closeSettings);
   els.settingsModal.addEventListener('pointerdown', (e) => {
     if (e.target === els.settingsModal) closeSettings();
@@ -1219,7 +1271,7 @@
   document.addEventListener('fullscreenchange', () => {
     const active = !!document.fullscreenElement;
     document.body.classList.toggle('presenting', active);
-    els.presentBtn.textContent = active ? 'Exit ■' : 'Project ▶';
+    document.getElementById('present-btn-label').textContent = active ? 'Exit' : 'Project';
     applyCanvasBackground();
     // give the browser a frame to settle the new layout before measuring it
     requestAnimationFrame(fitCanvas);
@@ -1245,8 +1297,15 @@
   });
   els.workspaceAddBtn.addEventListener('click', createWorkspace);
 
-  els.themeSelect.addEventListener('change', (e) => {
-    setTheme(e.target.value);
+  els.themePicker.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-theme-choice]');
+    if (!btn) return;
+    setSegmentedValue(els.themePicker, 'themeChoice', btn.dataset.themeChoice);
+    setTheme(btn.dataset.themeChoice);
+  });
+  els.themeToggleBtn.addEventListener('click', () => {
+    setTheme(resolveEffectiveTheme() === 'dark' ? 'light' : 'dark');
+    setSegmentedValue(els.themePicker, 'themeChoice', uiPrefs.theme);
   });
   if (systemThemeQuery) {
     systemThemeQuery.addEventListener('change', () => {
@@ -1410,7 +1469,7 @@
   function hydrateFromState() {
     els.wallWidth.value = state.wall.width;
     els.wallHeight.value = state.wall.height;
-    els.wallUnit.value = state.wall.unit;
+    setWallUnit(state.wall.unit);
     fitCanvas();
 
     createGridElement();
@@ -1615,8 +1674,9 @@
     loadUIPrefs();
     setSidebarCollapsed(uiPrefs.sidebarCollapsed);
     setLayersCompact(uiPrefs.layersCompact);
-    els.themeSelect.value = uiPrefs.theme;
+    setSegmentedValue(els.themePicker, 'themeChoice', uiPrefs.theme);
     applyTheme();
+    setSettingsSection('appearance-section');
     loadWorkspaces();
     activateWorkspaceState(activeWorkspaceId);
     renderWorkspaceTabs();
