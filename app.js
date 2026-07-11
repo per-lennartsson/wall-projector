@@ -162,6 +162,7 @@
       delete im.nailYPct;
       if (im.aspectLocked === undefined) im.aspectLocked = true;
       if (im.crop === undefined) im.crop = false;
+      if (im.snapToGrid === undefined) im.snapToGrid = false;
     });
     return parsed;
   }
@@ -456,6 +457,13 @@
   function pctToCmY(pct) {
     return (pct / 100) * state.wall.height;
   }
+  // Rounds a real-world cm coordinate to the nearest grid line, using the
+  // grid's cell size regardless of whether the grid is currently visible
+  // (the "snap to grid" per-image toggle works independently of that).
+  function snapCmToGrid(cm) {
+    const size = state.grid.size;
+    return size > 0 ? Math.round(cm / size) * size : cm;
+  }
 
   // The canvas has no intrinsic size of its own (it's a flex item centered
   // in #wall-frame), so we compute its pixel box explicitly from the wall's
@@ -505,6 +513,7 @@
       naturalH: naturalH || 0,
       aspectLocked: true,
       crop: false,
+      snapToGrid: false,
       frame: {
         enabled: state.defaults.frameEnabled,
         color: state.defaults.frameColor,
@@ -748,12 +757,22 @@
       const dy = ev.clientY - startY;
       imgState.xPct = startXPct + (dx / rect.width) * 100;
       imgState.yPct = startYPct + (dy / rect.height) * 100;
+
+      if (imgState.snapToGrid) {
+        imgState.xPct = cmToPctX(snapCmToGrid(pctToCmX(imgState.xPct)));
+        imgState.yPct = cmToPctY(snapCmToGrid(pctToCmY(imgState.yPct)));
+      }
+
+      const matches = applyAlignmentSnap(imgState, rect);
+      renderAlignGuides(matches);
+
       applyTransform(imgState);
       if (selectedId === imgState.id) renderProps();
     }
     function onUp() {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
+      clearAlignGuides();
       scheduleSave();
     }
     document.addEventListener('pointermove', onMove);
@@ -936,6 +955,8 @@
           ? "Width/height stay proportional to keep the image's aspect ratio (drag handle: hold Shift to stretch freely)."
           : "Width/height can be changed independently (drag handle: hold Shift to keep the aspect ratio)."
       }</p>
+      <div class="prop-row"><label>Snap to grid</label><input type="checkbox" id="prop-snap-grid" ${im.snapToGrid ? 'checked' : ''}></div>
+      <p class="hint">While dragging, position snaps to the nearest ${state.grid.size}${unit} grid line (Settings → Reference grid controls the grid size).</p>
       <div class="prop-row"><label>Frame</label><input type="checkbox" id="prop-frame-enabled" ${frame.enabled ? 'checked' : ''}></div>
       ${
         frame.enabled
@@ -1002,6 +1023,10 @@
     document.getElementById('prop-crop').addEventListener('change', (e) => {
       im.crop = e.target.checked;
       applyTransform(im);
+      scheduleSave();
+    });
+    document.getElementById('prop-snap-grid').addEventListener('change', (e) => {
+      im.snapToGrid = e.target.checked;
       scheduleSave();
     });
     document.getElementById('prop-r').addEventListener('input', (e) => {
@@ -1173,6 +1198,100 @@
     const cellPx = Math.max(2, state.grid.size * scale);
     gridEl.style.backgroundImage = buildGridTile(cellPx);
     gridEl.style.backgroundSize = `${cellPx}px ${cellPx}px`;
+  }
+
+  // ---------- alignment guides (editor only, shown while dragging) ----------
+  let alignGuidesEl = null;
+
+  function createAlignGuidesElement() {
+    alignGuidesEl = document.createElement('div');
+    alignGuidesEl.id = 'align-guides';
+    els.wallCanvas.appendChild(alignGuidesEl);
+  }
+
+  // Bounding-box edges of an image in px relative to the canvas, ignoring
+  // rotation — same screen-space simplification the drag/resize handlers
+  // already use throughout.
+  function getImageEdgesPx(imgState, rect) {
+    const left = (imgState.xPct / 100) * rect.width;
+    const top = (imgState.yPct / 100) * rect.height;
+    const width = (imgState.wPct / 100) * rect.width;
+    const height = (imgState.hPct / 100) * rect.height;
+    return {
+      left,
+      right: left + width,
+      centerX: left + width / 2,
+      top,
+      bottom: top + height,
+      centerY: top + height / 2,
+    };
+  }
+
+  const ALIGN_SNAP_PX = 6;
+
+  // Compares the dragged image's edges/center against every other image's,
+  // snapping xPct/yPct to the closest match on each axis (independently) and
+  // returning the matched px coordinates to draw guide lines at. Mutates
+  // imgState only if a match is found on that axis.
+  function applyAlignmentSnap(imgState, rect) {
+    const dragged = getImageEdgesPx(imgState, rect);
+    let bestX = null; // {distance, guidePx, deltaPx}
+    let bestY = null;
+    state.images.forEach((other) => {
+      if (other.id === imgState.id) return;
+      const o = getImageEdgesPx(other, rect);
+      [
+        [dragged.left, o.left],
+        [dragged.left, o.right],
+        [dragged.right, o.left],
+        [dragged.right, o.right],
+        [dragged.centerX, o.centerX],
+      ].forEach(([draggedPx, otherPx]) => {
+        const distance = Math.abs(draggedPx - otherPx);
+        if (distance <= ALIGN_SNAP_PX && (!bestX || distance < bestX.distance)) {
+          bestX = { distance, guidePx: otherPx, deltaPx: otherPx - draggedPx };
+        }
+      });
+      [
+        [dragged.top, o.top],
+        [dragged.top, o.bottom],
+        [dragged.bottom, o.top],
+        [dragged.bottom, o.bottom],
+        [dragged.centerY, o.centerY],
+      ].forEach(([draggedPx, otherPx]) => {
+        const distance = Math.abs(draggedPx - otherPx);
+        if (distance <= ALIGN_SNAP_PX && (!bestY || distance < bestY.distance)) {
+          bestY = { distance, guidePx: otherPx, deltaPx: otherPx - draggedPx };
+        }
+      });
+    });
+    if (bestX) imgState.xPct += (bestX.deltaPx / rect.width) * 100;
+    if (bestY) imgState.yPct += (bestY.deltaPx / rect.height) * 100;
+    return {
+      x: bestX ? bestX.guidePx : null,
+      y: bestY ? bestY.guidePx : null,
+    };
+  }
+
+  function renderAlignGuides(matches) {
+    if (!alignGuidesEl) return;
+    alignGuidesEl.innerHTML = '';
+    if (matches.x !== null) {
+      const line = document.createElement('div');
+      line.className = 'align-guide align-guide-v';
+      line.style.left = matches.x + 'px';
+      alignGuidesEl.appendChild(line);
+    }
+    if (matches.y !== null) {
+      const line = document.createElement('div');
+      line.className = 'align-guide align-guide-h';
+      line.style.top = matches.y + 'px';
+      alignGuidesEl.appendChild(line);
+    }
+  }
+
+  function clearAlignGuides() {
+    if (alignGuidesEl) alignGuidesEl.innerHTML = '';
   }
 
   // ---------- hanging-point dots ----------
@@ -1478,6 +1597,8 @@
     els.gridProject.checked = state.grid.projectToo;
     renderGrid();
 
+    createAlignGuidesElement();
+
     createRulerElement('top');
     createRulerElement('bottom');
     els.rulerLength.value = state.ruler.length;
@@ -1515,6 +1636,10 @@
     if (gridEl) {
       gridEl.remove();
       gridEl = null;
+    }
+    if (alignGuidesEl) {
+      alignGuidesEl.remove();
+      alignGuidesEl = null;
     }
     rulerEls.forEach(({ rulerEl }) => rulerEl.remove());
     rulerEls = [];
