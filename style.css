@@ -958,7 +958,6 @@ body.layers-compact .layer-name {
   color: var(--ruler-color, #ffcc00);
   font-size: 12px;
   font-weight: 600;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 /* Keep both labels inside the wall bounds: above the bottom ruler's line,
