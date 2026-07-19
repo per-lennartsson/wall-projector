@@ -1,0 +1,41 @@
+# Phase 0/1 checkpoint only: runs the new React+FastAPI stack side-by-side
+# with the still-authoritative vanilla-JS app (docker-compose.yml, port
+# 8080), on different ports, for review before it replaces anything.
+services:
+  wall-projector-web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ./api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://wallprojector:wallprojector@postgres:5432/wallprojector
+      JWT_SECRET: dev-secret-change-me-in-real-deployment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wallprojector
+      POSTGRES_PASSWORD: wallprojector
+      POSTGRES_DB: wallprojector
+    volumes:
+      - wall-projector-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallprojector"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  wall-projector-pgdata:
