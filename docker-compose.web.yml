@@ -17,6 +17,11 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://wallprojector:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/wallprojector
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env — see .env.example}
+      # No TLS termination in this checkpoint compose file (plain http on
+      # 8081) — a Secure cookie would never be stored by the browser, so the
+      # refresh_token cookie must not set Secure here. Real deployments behind
+      # an HTTPS-terminating proxy should leave this unset (defaults True).
+      COOKIE_SECURE: "false"
     depends_on:
       postgres:
         condition: service_healthy
