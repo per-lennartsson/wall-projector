@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
     cors_origins: list[str] = ["http://localhost:5173"]
+    # Browsers silently drop a Set-Cookie with Secure over a plain-http origin
+    # (no TLS termination in front). Defaults True for real deployments behind
+    # HTTPS; docker-compose.web.yml (no TLS, port 8081) overrides to False.
+    cookie_secure: bool = True
 
 
 settings = Settings()

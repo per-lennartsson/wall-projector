@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from ..config import settings
 from ..database import get_db
 from ..deps import get_current_user
 from ..models import RefreshToken, User
@@ -29,7 +30,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         key=REFRESH_COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=True,
+        secure=settings.cookie_secure,
         samesite="lax",
         path="/api/auth",
         max_age=60 * 60 * 24 * 30,
