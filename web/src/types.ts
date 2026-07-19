@@ -44,6 +44,14 @@ export interface WallProjectState {
   keystone: { enabled: boolean; vertical: number; horizontal: number };
 }
 
+export interface LibraryImage {
+  id: string;
+  src: string;
+  name: string;
+  naturalW: number;
+  naturalH: number;
+}
+
 export interface WorkspaceMeta {
   id: string;
   name: string;

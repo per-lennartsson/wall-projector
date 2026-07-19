@@ -1,5 +1,5 @@
 import { apiJson } from '../lib/httpClient';
-import type { WallProjectState } from '../types';
+import type { LibraryImage, WallProjectState } from '../types';
 
 export interface ProjectSummary {
   id: string;
@@ -39,4 +39,8 @@ export function exportProject(id: string): Promise<WallProjectState> {
 
 export function importProjects(body: unknown): Promise<{ project_ids: string[] }> {
   return apiJson('/projects/import', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) });
+}
+
+export function listImageLibrary(): Promise<LibraryImage[]> {
+  return apiJson('/images');
 }

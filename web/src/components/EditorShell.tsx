@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectCore } from '../hooks/useProjectCore';
+import type { LibraryImage } from '../types';
 import { useUIPrefs } from '../hooks/useUIPrefs';
 import { usePresentMode } from '../hooks/usePresentMode';
 import { Topbar } from './Topbar';
@@ -16,6 +17,9 @@ interface EditorShellProps {
    * (or omitted). Passed straight through to SettingsModal. */
   fileSection?: React.ReactNode;
   authArea?: React.ReactNode;
+  /** Backs the sidebar's "Choose from my images…" picker — sync local scan
+   * in local mode, async API fetch in cloud mode. */
+  imageLibrary: () => LibraryImage[] | Promise<LibraryImage[]>;
 }
 
 /**
@@ -26,7 +30,7 @@ interface EditorShellProps {
  * else operates purely on the `project: ProjectCore` shape both
  * useProject() and useCloudProject() produce.
  */
-export function EditorShell({ project, middleArea, fileSection, authArea }: EditorShellProps) {
+export function EditorShell({ project, middleArea, fileSection, authArea, imageLibrary }: EditorShellProps) {
   const { prefs, effectiveTheme, setSidebarCollapsed, setLayersCompact, setTheme } = useUIPrefs();
 
   const [wallFrameEl, setWallFrameEl] = useState<HTMLDivElement | null>(null);
@@ -163,6 +167,7 @@ export function EditorShell({ project, middleArea, fileSection, authArea }: Edit
           onToggleLayersCompact={() => setLayersCompact(!prefs.layersCompact)}
           getCanvasRect={getCanvasRect}
           topOffsetPx={sidebarTop}
+          imageLibrary={imageLibrary}
         />
 
         <Stage

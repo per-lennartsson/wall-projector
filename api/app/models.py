@@ -99,6 +99,10 @@ class ProjectImage(Base):
     local_id: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String, default="")
     src: Mapped[str] = mapped_column(Text, nullable=False)
+    # sha256(src), computed at write time (see routers/projects.py) — lets the
+    # image-library endpoint dedupe the same photo reused across a user's
+    # projects without hashing the (potentially multi-MB) src on every read.
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     x_pct: Mapped[float] = mapped_column(Numeric, default=0)
     y_pct: Mapped[float] = mapped_column(Numeric, default=0)

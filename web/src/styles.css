@@ -445,6 +445,10 @@ button.icon-btn.active {
   height: 520px;
 }
 
+#image-library-modal .modal-panel {
+  width: 560px;
+}
+
 .settings-nav {
   width: 180px;
   flex-shrink: 0;
@@ -737,6 +741,11 @@ body.sidebar-collapsed #sidebar-collapse-btn {
   min-width: 0;
 }
 
+.library-open-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
 /* ---------- Layers list ---------- */
 
 #layers-list {
@@ -804,6 +813,49 @@ body.sidebar-collapsed #sidebar-collapse-btn {
 .layer-item button.delete-btn:hover {
   color: var(--danger);
   background: var(--danger-wash);
+}
+
+/* ---------- Image library picker ---------- */
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
+.library-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.library-thumb:hover {
+  border-color: var(--accent);
+}
+
+.library-thumb img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #111;
+}
+
+.library-thumb-name {
+  width: 100%;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 body.layers-compact .layer-item {
