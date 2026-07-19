@@ -15,19 +15,21 @@ services:
     build:
       context: ./api
     environment:
-      DATABASE_URL: postgresql+asyncpg://wallprojector:wallprojector@postgres:5432/wallprojector
-      JWT_SECRET: dev-secret-change-me-in-real-deployment
+      DATABASE_URL: postgresql+asyncpg://wallprojector:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/wallprojector
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env — see .env.example}
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    # No host port mapping: the browser only ever talks to nginx
+    # (wall-projector-web), which proxies /api/ to this service over the
+    # compose network. Publishing 8000 directly would bypass nginx's request
+    # size limit and let anyone on the host network hit the API unproxied.
 
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: wallprojector
-      POSTGRES_PASSWORD: wallprojector
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: wallprojector
     volumes:
       - wall-projector-pgdata:/var/lib/postgresql/data

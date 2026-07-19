@@ -198,23 +198,57 @@
   // Shared by activateWorkspaceState() (from localStorage) and file import, so both
   // apply the exact same rules. Mutates and returns the given object; throws
   // if it doesn't look like a wall-projector state at all.
+  // Numeric/enum fields below get interpolated straight into innerHTML
+  // templates in renderProps() (e.g. `${unit}`, `${frame.width}`) without
+  // further escaping — an imported project file (the app's own "share"
+  // mechanism) with e.g. `"unit": "<img src=x onerror=...>"` would otherwise
+  // execute script when the props panel renders. Whitelisting/coercing here,
+  // once, closes that off for every render site at once.
+  const WALL_UNITS = ['cm', 'm', 'in', 'px'];
+
+  function toFiniteNumber(v, fallback) {
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
   function normalizeState(parsed) {
     if (!parsed || !parsed.wall || !Array.isArray(parsed.images)) {
       throw new Error('Not a wall-projector project file');
     }
+    if (!WALL_UNITS.includes(parsed.wall.unit)) parsed.wall.unit = 'cm';
+    parsed.wall.width = toFiniteNumber(parsed.wall.width, 300);
+    parsed.wall.height = toFiniteNumber(parsed.wall.height, 200);
+
     if (!parsed.ruler) parsed.ruler = { length: 100, visible: true, color: '#ffcc00' };
     if (!parsed.ruler.color) parsed.ruler.color = '#ffcc00';
+    parsed.ruler.length = toFiniteNumber(parsed.ruler.length, 100);
     if (!parsed.background) parsed.background = { enabled: false, color: '#2a2a2a', projectToo: false };
     if (parsed.background.projectToo === undefined) parsed.background.projectToo = false;
     if (!parsed.defaults) {
       parsed.defaults = { imageWidth: 30, frameEnabled: false, frameColor: 'black', frameWidth: 3 };
     }
+    if (!FRAME_COLORS.includes(parsed.defaults.frameColor)) parsed.defaults.frameColor = 'black';
+    parsed.defaults.imageWidth = toFiniteNumber(parsed.defaults.imageWidth, 30);
+    parsed.defaults.frameWidth = toFiniteNumber(parsed.defaults.frameWidth, 3);
     if (!parsed.grid) parsed.grid = { enabled: false, size: 20, projectToo: false };
     if (parsed.grid.projectToo === undefined) parsed.grid.projectToo = false;
+    parsed.grid.size = toFiniteNumber(parsed.grid.size, 20);
     if (!parsed.nail) parsed.nail = { enabled: false, color: '#ff3b3b', size: 10 };
+    parsed.nail.size = toFiniteNumber(parsed.nail.size, 10);
     if (!parsed.keystone) parsed.keystone = { enabled: false, vertical: 0, horizontal: 0 };
+    parsed.keystone.vertical = toFiniteNumber(parsed.keystone.vertical, 0);
+    parsed.keystone.horizontal = toFiniteNumber(parsed.keystone.horizontal, 0);
     parsed.images.forEach((im) => {
       if (!im.frame) im.frame = { enabled: false, color: 'black', width: 3 };
+      if (!FRAME_COLORS.includes(im.frame.color)) im.frame.color = 'black';
+      im.frame.width = toFiniteNumber(im.frame.width, 3);
+      im.xPct = toFiniteNumber(im.xPct, 0);
+      im.yPct = toFiniteNumber(im.yPct, 0);
+      im.wPct = toFiniteNumber(im.wPct, 10);
+      im.hPct = toFiniteNumber(im.hPct, 10);
+      im.rotation = toFiniteNumber(im.rotation, 0);
+      im.naturalW = toFiniteNumber(im.naturalW, 0);
+      im.naturalH = toFiniteNumber(im.naturalH, 0);
       if (!Array.isArray(im.nails)) {
         const wReal = (im.wPct / 100) * parsed.wall.width;
         const hReal = (im.hPct / 100) * parsed.wall.height;
@@ -225,6 +259,10 @@
           im.nails = [{ xCm: wReal / 2, yCm: hReal / 2 }];
         }
       }
+      im.nails.forEach((n) => {
+        n.xCm = toFiniteNumber(n.xCm, 0);
+        n.yCm = toFiniteNumber(n.yCm, 0);
+      });
       delete im.nailXPct;
       delete im.nailYPct;
       if (im.aspectLocked === undefined) im.aspectLocked = true;

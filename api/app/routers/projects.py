@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +28,20 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+# Without a cap, a single free account could create unlimited projects (each
+# carrying up to 200 images at ~11MB apiece — see schemas.ImageState) and
+# exhaust the database. Generous enough for any real usage.
+MAX_PROJECTS_PER_USER = 100
+
+
+async def _check_project_quota(db: AsyncSession, user: User, *, additional: int = 1) -> None:
+    count = await db.scalar(select(func.count()).select_from(Project).where(Project.user_id == user.id))
+    if (count or 0) + additional > MAX_PROJECTS_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Project limit reached (max {MAX_PROJECTS_PER_USER} per account)",
+        )
 
 
 async def _get_owned_project(db: AsyncSession, project_id: uuid.UUID, user: User) -> Project:
@@ -154,6 +168,7 @@ async def list_projects(user: User = Depends(get_current_user), db: AsyncSession
 
 @router.post("", response_model=ProjectSummary, status_code=status.HTTP_201_CREATED)
 async def create_project(body: ProjectCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await _check_project_quota(db, user)
     project = _default_project(user.id, body.name)
     db.add(project)
     await db.commit()
@@ -212,15 +227,32 @@ async def export_project(project_id: uuid.UUID, user: User = Depends(get_current
 async def import_projects(body: dict, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     # Mirrors the frontend's importProjectFromFile(): accepts either a single
     # ProjectState, or a {type:'wall-projector-workspaces', workspaces:[...]}
-    # bundle (one project created per entry).
+    # bundle (one project created per entry). `body` is a raw dict (not a
+    # typed schema) precisely so malformed/legacy shapes can be normalized
+    # below rather than rejected outright — so every field pulled off it here
+    # must be validated first, or a crafted bundle (e.g. a workspace entry
+    # that isn't a dict, or is missing "state") throws an unhandled 500
+    # instead of a clean 400.
+    bad_bundle = HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No workspaces in bundle")
     entries: list[tuple[str, dict]]
     if isinstance(body, dict) and body.get("type") == "wall-projector-workspaces":
         workspaces = body.get("workspaces")
         if not isinstance(workspaces, list) or not workspaces:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No workspaces in bundle")
-        entries = [(w.get("name") or "Imported", w["state"]) for w in workspaces]
+            raise bad_bundle
+        entries = []
+        for w in workspaces:
+            if not isinstance(w, dict) or not isinstance(w.get("state"), dict):
+                raise bad_bundle
+            name = w.get("name")
+            entries.append((name if isinstance(name, str) and name else "Imported", w["state"]))
     else:
         entries = [("Imported", body)]
+
+    # Cap how many projects one import call can create, both to keep this
+    # bounded work and so it composes with the per-user project quota below.
+    if len(entries) > 50:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Too many workspaces in one import (max 50)")
+    await _check_project_quota(db, user, additional=len(entries))
 
     created_ids: list[uuid.UUID] = []
     for name, raw_state in entries:

@@ -9,6 +9,13 @@ from .config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Fixed hash to verify against when a login's email doesn't match any user,
+# so verify_password always costs the same ~bcrypt round-trip regardless of
+# whether the account exists (otherwise the "no such user" path returns
+# near-instantly while a wrong-password path takes ~100ms, letting an
+# attacker enumerate registered emails by timing alone).
+DUMMY_PASSWORD_HASH = pwd_context.hash(secrets.token_urlsafe(32))
+
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)

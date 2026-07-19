@@ -11,7 +11,10 @@ WallUnit = Literal["cm", "m", "in", "px"]
 # ---------- auth ----------
 class SignupRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8)
+    # bcrypt silently truncates at 72 bytes — capping input length avoids a
+    # false sense of security from a longer password that's actually
+    # ignored past that point.
+    password: str = Field(min_length=8, max_length=72)
 
 
 class LoginRequest(BaseModel):
@@ -43,8 +46,12 @@ class Frame(BaseModel):
 
 class ImageState(BaseModel):
     id: int
-    src: str
-    name: str
+    # Images are stored as base64 data URLs (no object storage — see
+    # CLAUDE.md), so this field is the actual photo bytes; capping it
+    # (~11MB decoded) and the list lengths below stops a single project from
+    # growing unboundedly and exhausting the database.
+    src: str = Field(max_length=15_000_000)
+    name: str = Field(max_length=500)
     xPct: float
     yPct: float
     wPct: float
@@ -56,7 +63,7 @@ class ImageState(BaseModel):
     crop: bool
     snapToGrid: bool
     frame: Frame
-    nails: list[Nail]
+    nails: list[Nail] = Field(max_length=20)
 
 
 class Wall(BaseModel):
@@ -104,7 +111,7 @@ class Keystone(BaseModel):
 
 class ProjectState(BaseModel):
     wall: Wall
-    images: list[ImageState]
+    images: list[ImageState] = Field(max_length=200)
     ruler: Ruler
     background: Background
     defaults: Defaults
