@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
 import type { ProjectCore } from '../hooks/useProjectCore';
+import type { LibraryImage } from '../types';
 import { LayersList } from './LayersList';
 import { PropsPanel } from './PropsPanel';
+import { ImageLibraryModal } from './ImageLibraryModal';
 
 interface SidebarProps {
   project: ProjectCore;
@@ -11,6 +13,7 @@ interface SidebarProps {
   onToggleLayersCompact: () => void;
   getCanvasRect: () => { width: number; height: number };
   topOffsetPx: number;
+  imageLibrary: () => LibraryImage[] | Promise<LibraryImage[]>;
 }
 
 export function Sidebar({
@@ -21,8 +24,10 @@ export function Sidebar({
   onToggleLayersCompact,
   getCanvasRect,
   topOffsetPx,
+  imageLibrary,
 }: SidebarProps) {
   const [urlValue, setUrlValue] = useState('');
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFiles(files: FileList | null) {
@@ -85,6 +90,10 @@ export function Sidebar({
           />
           <button onClick={handleAddUrl}>Add</button>
         </div>
+
+        <button type="button" className="library-open-btn" onClick={() => setLibraryOpen(true)}>
+          Choose from my images…
+        </button>
       </section>
 
       <section id="layers-section">
@@ -114,6 +123,13 @@ export function Sidebar({
           Clear all
         </button>
       </section>
+
+      <ImageLibraryModal
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        loadLibrary={imageLibrary}
+        onPick={(img) => project.addImage(img.src, img.naturalW, img.naturalH, img.name, getCanvasRect())}
+      />
     </aside>
   );
 }

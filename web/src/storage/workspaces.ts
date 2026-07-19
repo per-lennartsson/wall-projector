@@ -1,4 +1,4 @@
-import type { WallProjectState, WorkspaceMeta } from '../types';
+import type { LibraryImage, WallProjectState, WorkspaceMeta } from '../types';
 import { normalizeState } from '../normalizeState';
 import { makeDefaultState } from '../defaults';
 
@@ -128,6 +128,30 @@ export function gatherLocalWorkspacesBundle(): { type: 'wall-projector-workspace
     type: 'wall-projector-workspaces',
     workspaces: workspaces.map((ws) => ({ name: ws.name, state: readWorkspaceState(ws.id) || makeDefaultState() })),
   };
+}
+
+// Same result cap as the cloud /api/images endpoint, for a consistent
+// picker UI regardless of mode.
+const IMAGE_LIBRARY_LIMIT = 48;
+
+// Flattens every local workspace's images into a "my images" library for the
+// image picker, deduping by exact src match (cheap here since everything is
+// already in memory, unlike the cloud path which hashes at write time).
+export function gatherLocalImageLibrary(): LibraryImage[] {
+  const { workspaces } = loadWorkspaceIndex();
+  const seen = new Set<string>();
+  const out: LibraryImage[] = [];
+  for (const ws of workspaces) {
+    const state = readWorkspaceState(ws.id);
+    if (!state) continue;
+    for (const im of state.images) {
+      if (seen.has(im.src)) continue;
+      seen.add(im.src);
+      out.push({ id: im.src, src: im.src, name: im.name, naturalW: im.naturalW, naturalH: im.naturalH });
+      if (out.length >= IMAGE_LIBRARY_LIMIT) return out;
+    }
+  }
+  return out;
 }
 
 // Wipes every local workspace + the UI-prefs key, used only after the user

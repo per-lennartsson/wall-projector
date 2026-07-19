@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import auth, projects
+from .routers import auth, images, projects
 
 app = FastAPI(title="Wall Projector API")
 
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(projects.router)
+app.include_router(images.router)
 
 
 @app.get("/api/health")

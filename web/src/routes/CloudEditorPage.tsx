@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useCloudProject } from '../hooks/useCloudProject';
 import { EditorShell } from '../components/EditorShell';
+import { listImageLibrary } from '../data/cloudApi';
 
 export default function CloudEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -73,5 +74,5 @@ export default function CloudEditorPage() {
     </>
   );
 
-  return <EditorShell project={project} middleArea={middleArea} fileSection={fileSection} />;
+  return <EditorShell project={project} middleArea={middleArea} fileSection={fileSection} imageLibrary={listImageLibrary} />;
 }

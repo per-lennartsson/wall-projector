@@ -146,3 +146,11 @@ class WorkspaceBundle(BaseModel):
 
 class ImportResult(BaseModel):
     project_ids: list[uuid.UUID]
+
+
+class LibraryImageOut(BaseModel):
+    id: str  # content_hash
+    src: str
+    name: str
+    naturalW: float
+    naturalH: float

@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -137,6 +138,7 @@ def _apply_state_to_project(project: Project, state: ProjectState) -> None:
                 local_id=im.id,
                 name=im.name,
                 src=im.src,
+                content_hash=hashlib.sha256(im.src.encode()).hexdigest(),
                 x_pct=im.xPct,
                 y_pct=im.yPct,
                 w_pct=im.wPct,

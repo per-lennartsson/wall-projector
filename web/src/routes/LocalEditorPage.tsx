@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useProject } from '../hooks/useProject';
 import { EditorShell } from '../components/EditorShell';
 import { WorkspaceTabs } from '../components/WorkspaceTabs';
+import { gatherLocalImageLibrary } from '../storage/workspaces';
 
 export default function LocalEditorPage() {
   const project = useProject();
@@ -47,6 +48,7 @@ export default function LocalEditorPage() {
       project={project}
       middleArea={<WorkspaceTabs project={project} />}
       fileSection={fileSection}
+      imageLibrary={gatherLocalImageLibrary}
       authArea={
         <Link to="/login" className="icon-btn" title="Sign in to sync your projects to the cloud" aria-label="Log in">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
