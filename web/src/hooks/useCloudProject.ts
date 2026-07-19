@@ -34,6 +34,9 @@ export function useCloudProject(projectId: string) {
       .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load project'));
   }, [projectId]);
 
+  const bootErrorMessage =
+    core.bootError instanceof Error ? core.bootError.message : core.bootError ? 'Failed to load project' : null;
+
   const renameProject = useCallback(async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -47,7 +50,7 @@ export function useCloudProject(projectId: string) {
     downloadJSON(state, `wall-projector-${sanitizeFilenamePart(projectName)}-${stamp}.json`);
   }, [projectName]);
 
-  return { ...core, projectId, projectName, renameProject, exportProject, loadError };
+  return { ...core, projectId, projectName, renameProject, exportProject, loadError: loadError ?? bootErrorMessage };
 }
 
 export type UseCloudProjectReturn = ReturnType<typeof useCloudProject>;

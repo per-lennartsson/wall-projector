@@ -31,6 +31,7 @@ export interface ProjectCoreOptions {
  */
 export function useProjectCore({ bootstrap, onPersist }: ProjectCoreOptions) {
   const [ready, setReady] = useState(false);
+  const [bootError, setBootError] = useState<unknown>(null);
   const [state, setState] = useState<WallProjectState>(() => ({
     wall: { width: 300, height: 200, unit: 'cm' },
     images: [],
@@ -57,14 +58,21 @@ export function useProjectCore({ bootstrap, onPersist }: ProjectCoreOptions) {
   useEffect(() => {
     if (initedRef.current) return; // guards against React.StrictMode's dev double-invoke
     initedRef.current = true;
-    Promise.resolve(bootstrap()).then((initial) => {
-      nextIdRef.current = initial.images.reduce((m, im) => Math.max(m, im.id + 1), 1);
-      suppressNextSnapshotRef.current = true;
-      setState(initial);
-      undoStackRef.current = [JSON.stringify(initial)];
-      redoStackRef.current = [];
-      setReady(true);
-    });
+    Promise.resolve(bootstrap())
+      .then((initial) => {
+        nextIdRef.current = initial.images.reduce((m, im) => Math.max(m, im.id + 1), 1);
+        suppressNextSnapshotRef.current = true;
+        setState(initial);
+        undoStackRef.current = [JSON.stringify(initial)];
+        redoStackRef.current = [];
+        setReady(true);
+      })
+      .catch((err) => {
+        // bootstrap() only rejects in cloud mode (an API fetch) — surface it
+        // instead of leaving an unhandled rejection and an infinite spinner.
+        setBootError(err);
+        setReady(true);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -369,6 +377,7 @@ export function useProjectCore({ bootstrap, onPersist }: ProjectCoreOptions) {
 
   return {
     ready,
+    bootError,
     state,
     selectedIds,
     selectImage,
