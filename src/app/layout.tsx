@@ -11,7 +11,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        {/* Mirrors the pre-rebuild Vite app's #root mount div — see the
+            comment in globals.css for why this needs an explicit id. */}
+        <div id="root">
+          <Providers>{children}</Providers>
+        </div>
       </body>
     </html>
   );

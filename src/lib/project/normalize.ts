@@ -1,14 +1,17 @@
+import type { WallProjectState } from './state';
+
 /**
  * Fills in defaults for any fields missing from an older save (or a file
  * from an older version of the app) and migrates deprecated formats. Shared
  * by every load path (DB read normalization happens at write time via the
- * PUT route's schema, import happens here), so both apply the exact same
- * rules. Mutates and returns the given object; throws if it doesn't look
- * like a wall-projector state at all. Ported from the pre-rebuild app.js /
- * web/src/normalizeState.ts and api/app/normalize.py — kept as the one copy
- * now that frontend and backend share a codebase.
+ * PUT route's schema, import happens here; the frontend also calls this
+ * directly for localStorage loads/file imports), so all apply the exact
+ * same rules. Mutates and returns the given object; throws if it doesn't
+ * look like a wall-projector state at all. Ported from the pre-rebuild
+ * app.js / web/src/normalizeState.ts and api/app/normalize.py — kept as the
+ * one copy now that frontend and backend share a codebase.
  */
-export function normalizeState(parsed: unknown): Record<string, any> {
+export function normalizeState(parsed: unknown): WallProjectState {
   if (
     !parsed ||
     typeof parsed !== 'object' ||
@@ -56,5 +59,5 @@ export function normalizeState(parsed: unknown): Record<string, any> {
     if (im.snapToGrid === undefined) im.snapToGrid = false;
   }
 
-  return state;
+  return state as WallProjectState;
 }

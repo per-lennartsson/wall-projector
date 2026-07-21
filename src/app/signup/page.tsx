@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
@@ -9,12 +10,12 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
+    setBusy(true);
 
     const res = await fetch('/api/auth/signup', {
       method: 'POST',
@@ -24,12 +25,12 @@ export default function SignupPage() {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setError(body.error || 'Signup failed');
-      setSubmitting(false);
+      setBusy(false);
       return;
     }
 
     const result = await signIn('credentials', { email, password, redirect: false });
-    setSubmitting(false);
+    setBusy(false);
     if (result?.error) {
       setError('Account created, but login failed — try logging in.');
       return;
@@ -39,31 +40,29 @@ export default function SignupPage() {
   }
 
   return (
-    <main>
-      <h1>Sign up</h1>
-      <form onSubmit={handleSubmit}>
+    <div className="auth-page">
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <h1>Sign up</h1>
+        {error && <p className="auth-error">{error}</p>}
         <label>
           Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
         </label>
         <label>
           Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-          />
+          <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Creating account…' : 'Sign up'}
+        <p className="hint">At least 8 characters.</p>
+        <button type="submit" className="primary" disabled={busy}>
+          {busy ? 'Creating account…' : 'Sign up'}
         </button>
+        <p className="hint">
+          Already have an account? <Link href="/login">Log in</Link>
+        </p>
+        <p className="hint">
+          <Link href="/">Continue without an account</Link>
+        </p>
       </form>
-      <p>
-        Already have an account? <a href="/login">Log in</a>
-      </p>
-    </main>
+    </div>
   );
 }
