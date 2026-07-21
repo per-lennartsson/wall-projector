@@ -2,3 +2,7 @@ CLAUDE.md
 .env
 api/.env
 .claude/settings.local.json
+
+# Next.js / node
+node_modules/
+.next/

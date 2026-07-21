@@ -1,5 +1,21 @@
+name: wall-projector
+
 services:
-  wall-projector:
-    build: .
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NODE_ENV: production
     ports:
-      - "8080:80"
+      - "${APP_PORT:-3000}:3000"
+    networks:
+      - postgres
+
+networks:
+  postgres:
+    external: true
