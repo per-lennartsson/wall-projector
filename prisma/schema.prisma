@@ -13,5 +13,110 @@ model User {
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
 
+  projects Project[]
+
   @@map("users")
+}
+
+// Numeric fields use Float (not Decimal) on purpose: these are UI pixel/cm
+// values, not money, so JS-number precision is fine and it avoids Prisma's
+// Decimal wrapper needing manual conversion on every read (unlike Decimal,
+// Float round-trips through NextResponse.json() as a plain number).
+model Project {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  name   String
+
+  wallWidth  Float  @default(300) @map("wall_width")
+  wallHeight Float  @default(200) @map("wall_height")
+  wallUnit   String @default("cm") @map("wall_unit")
+
+  rulerLength  Float   @default(100) @map("ruler_length")
+  rulerVisible Boolean @default(true) @map("ruler_visible")
+  rulerColor   String  @default("#ffcc00") @map("ruler_color")
+
+  bgEnabled    Boolean @default(false) @map("bg_enabled")
+  bgColor      String  @default("#2a2a2a") @map("bg_color")
+  bgProjectToo Boolean @default(false) @map("bg_project_too")
+
+  defaultImageWidth   Float   @default(30) @map("default_image_width")
+  defaultFrameEnabled Boolean @default(false) @map("default_frame_enabled")
+  defaultFrameColor   String  @default("black") @map("default_frame_color")
+  defaultFrameWidth   Float   @default(3) @map("default_frame_width")
+
+  gridEnabled    Boolean @default(false) @map("grid_enabled")
+  gridSize       Float   @default(20) @map("grid_size")
+  gridProjectToo Boolean @default(false) @map("grid_project_too")
+
+  nailEnabled Boolean @default(false) @map("nail_enabled")
+  nailColor   String  @default("#ff3b3b") @map("nail_color")
+  nailSize    Float   @default(10) @map("nail_size")
+
+  keystoneEnabled    Boolean @default(false) @map("keystone_enabled")
+  keystoneVertical   Float   @default(0) @map("keystone_vertical")
+  keystoneHorizontal Float   @default(0) @map("keystone_horizontal")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images ProjectImage[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model ProjectImage {
+  id        String @id @default(uuid())
+  projectId String @map("project_id")
+  // The frontend's ImageState.id is a small per-project integer counter
+  // (used for React keys/selection, not a UUID) — stored here verbatim so
+  // the API can round-trip the exact same JSON shape the local-mode
+  // (localStorage) path already produces.
+  localId   Int    @map("local_id")
+  name      String @default("")
+  src       String @db.Text
+  // sha256(src), computed at write time — lets the image-library endpoint
+  // dedupe the same photo reused across a user's projects without hashing
+  // the (potentially multi-MB) src on every read.
+  contentHash String @map("content_hash") @db.VarChar(64)
+
+  xPct     Float @default(0) @map("x_pct")
+  yPct     Float @default(0) @map("y_pct")
+  wPct     Float @default(10) @map("w_pct")
+  hPct     Float @default(10) @map("h_pct")
+  rotation Float @default(0)
+  naturalW Float @default(0) @map("natural_w")
+  naturalH Float @default(0) @map("natural_h")
+
+  frameEnabled Boolean @default(false) @map("frame_enabled")
+  frameColor   String  @default("black") @map("frame_color")
+  frameWidth   Float   @default(3) @map("frame_width")
+
+  aspectLocked Boolean @default(true) @map("aspect_locked")
+  crop         Boolean @default(false)
+  snapToGrid   Boolean @default(false) @map("snap_to_grid")
+
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nails   ImageNail[]
+
+  @@index([projectId])
+  @@map("images")
+}
+
+model ImageNail {
+  id        String @id @default(uuid())
+  imageId   String @map("image_id")
+  xCm       Float  @default(0) @map("x_cm")
+  yCm       Float  @default(0) @map("y_cm")
+  sortOrder Int    @default(0) @map("sort_order")
+
+  image ProjectImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([imageId])
+  @@map("nails")
 }
