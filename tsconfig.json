@@ -19,8 +19,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  // web/ and api/ are the pre-rebuild Vite/FastAPI checkpoint, still present
-  // until the legacy-retirement phase of the Next.js rebuild removes them —
-  // exclude so their own (different) TS setup doesn't get swept into this one.
-  "exclude": ["node_modules", "web", "api"]
+  "exclude": ["node_modules"]
 }
