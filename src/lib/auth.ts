@@ -1,38 +1,44 @@
-import type { NextAuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
+import { betterAuth } from 'better-auth';
+import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { genericOAuth } from 'better-auth/plugins';
 import { prisma } from './prisma';
 
-export const authOptions: NextAuthOptions = {
-  session: { strategy: 'jwt' },
-  pages: { signIn: '/login' },
-  providers: [
-    CredentialsProvider({
-      name: 'Credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
-        if (!user) return null;
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
-        return { id: user.id, email: user.email };
-      },
-    }),
-  ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) token.sub = user.id;
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user && token.sub) {
-        (session.user as { id?: string }).id = token.sub;
-      }
-      return session;
+// Login is delegated entirely to Authentik (passwordless: email code or
+// passkey). There is no password login in this app anymore.
+//
+// Env (see .env.example):
+//   BETTER_AUTH_URL / BETTER_AUTH_SECRET  read by Better Auth itself
+//   AUTHENTIK_ISSUER                      https://auth.<domain>/application/o/<slug>/
+//   AUTHENTIK_CLIENT_ID / _CLIENT_SECRET  from the Authentik provider
+//
+// The OAuth callback is <BETTER_AUTH_URL>/api/auth/callback/authentik, which
+// must be registered as a redirect URI on the Authentik provider.
+const issuer = (process.env.AUTHENTIK_ISSUER ?? '').replace(/\/?$/, '/');
+
+export const auth = betterAuth({
+  database: prismaAdapter(prisma, { provider: 'postgresql' }),
+  // Existing users have uuid ids; keep every new id the same shape.
+  advanced: { database: { generateId: () => crypto.randomUUID() } },
+  account: {
+    accountLinking: {
+      enabled: true,
+      // Authentik only lets a user in after they proved they own their email,
+      // and the same email is how users are matched across apps, so an
+      // existing wall-projector user is linked rather than duplicated.
+      trustedProviders: ['authentik'],
     },
   },
-};
+  plugins: [
+    genericOAuth({
+      config: [
+        {
+          providerId: 'authentik',
+          clientId: process.env.AUTHENTIK_CLIENT_ID ?? '',
+          clientSecret: process.env.AUTHENTIK_CLIENT_SECRET ?? '',
+          discoveryUrl: `${issuer}.well-known/openid-configuration`,
+          scopes: ['openid', 'profile', 'email'],
+        },
+      ],
+    }),
+  ],
+});

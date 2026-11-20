@@ -15,23 +15,22 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "better-auth": "^1.7.26",
+    "jose": "^6.2.18",
     "next": "^15.5.20",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "next-auth": "^4.24.7",
-    "@prisma/client": "^5.20.0",
-    "bcryptjs": "^2.4.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
     "@types/node": "^20.14.15",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/bcryptjs": "^2.4.6",
-    "prisma": "^5.20.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.5.20",
+    "prisma": "^5.20.0",
+    "typescript": "^5.5.4",
     "vitest": "^2.1.1"
   }
 }

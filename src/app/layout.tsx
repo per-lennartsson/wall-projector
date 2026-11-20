@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Providers } from '@/components/Providers';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -14,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Mirrors the pre-rebuild Vite app's #root mount div — see the
             comment in globals.css for why this needs an explicit id. */}
         <div id="root">
-          <Providers>{children}</Providers>
+          {children}
         </div>
       </body>
     </html>

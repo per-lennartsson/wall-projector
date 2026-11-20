@@ -1,4 +1,4 @@
-import { useSession, signOut } from 'next-auth/react';
+import { authClient } from '@/lib/auth-client';
 
 export interface AuthUser {
   id: string;
@@ -6,18 +6,16 @@ export interface AuthUser {
 }
 
 /**
- * Thin wrapper over NextAuth's useSession(), matching the small surface the
- * pre-rebuild AuthContext exposed (user/ready/logout) so ProjectPickerPage
- * and the root page didn't need bigger changes. Login/signup go straight
- * through next-auth/react's signIn() from their own pages instead of a
- * shared context method — NextAuth already owns that flow end to end.
+ * Thin wrapper over Better Auth's useSession(), keeping the small surface
+ * (user/ready/logout) that ProjectPickerPage and the root page already use.
+ * Sign-in goes through authClient.signIn.social() from the login page.
  */
 export function useAuth() {
-  const { data: session, status } = useSession();
-  const user: AuthUser | null = session?.user ? { id: session.user.id, email: session.user.email ?? '' } : null;
+  const { data: session, isPending } = authClient.useSession();
+  const user: AuthUser | null = session?.user ? { id: session.user.id, email: session.user.email } : null;
   return {
     user,
-    ready: status !== 'loading',
-    logout: () => signOut({ redirect: false }),
+    ready: !isPending,
+    logout: () => authClient.signOut(),
   };
 }

@@ -29,7 +29,7 @@ Everything runs through Docker — **there's no need to install Node or run `npm
 ### Development
 
 ```bash
-cp .env.example .env   # then fill in NEXTAUTH_SECRET (see the comment in that file)
+cp .env.example .env   # then fill in BETTER_AUTH_SECRET and the AUTHENTIK_* values (see the comments in that file)
 docker compose -f docker-compose.dev.yml up
 ```
 
@@ -54,11 +54,19 @@ docker compose -f docker-compose.dev.yml run --rm -e NODE_ENV=production app npm
 `docker-compose.yml` builds the production image (a multi-stage build producing a minimal standalone Next.js server) and expects Postgres to already be running as a separate container on an external Docker network named `postgres`:
 
 ```bash
-cp .env.example .env   # fill in DATABASE_URL pointing at that Postgres instance, plus NEXTAUTH_URL/NEXTAUTH_SECRET
+cp .env.example .env   # fill in DATABASE_URL pointing at that Postgres instance, plus BETTER_AUTH_URL/BETTER_AUTH_SECRET and the AUTHENTIK_* values
 docker compose up -d --build
 ```
 
 The container runs `prisma migrate deploy` on startup before serving traffic.
+
+### Authentication
+
+Cloud-mode login goes through [Authentik](https://auth.per-lennartsson.se) (passwordless: emailed code or passkey) using [Better Auth](https://www.better-auth.com)'s generic OAuth plugin, provider id `authentik`. There are no passwords in this app. Existing users are matched to their Authentik login by email, so their projects stay attached.
+
+- Authentik provider/app slug: `wall-projector`; issuer `https://auth.per-lennartsson.se/application/o/wall-projector/`.
+- Redirect URI registered on the provider: `<BETTER_AUTH_URL>/api/auth/callback/authentik`. Local development on `http://localhost:3000` needs that URI added to the provider too.
+- `users.password_hash` is a leftover from the old password login and is no longer used; drop it in a later migration once everyone has signed in via Authentik.
 
 ## How to use
 
